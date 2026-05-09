@@ -23,5 +23,7 @@ export interface StorageAdapter {
 
   isConfigured(settings: StorageAdapterSettings): boolean;
 
+  testConnection?(settings: StorageAdapterSettings): Promise<UploadPackageResult>;
+
   uploadPackage(input: UploadPackageInput): Promise<UploadPackageResult>;
 }

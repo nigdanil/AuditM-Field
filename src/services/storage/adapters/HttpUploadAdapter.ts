@@ -3,6 +3,40 @@ import type {
   UploadPackageInput,
   UploadPackageResult,
 } from '../storageAdapter';
+import type { StorageAdapterSettings } from '../settings/storageAdapterSettings';
+
+function getUploadUrl(settings: StorageAdapterSettings): string {
+  const url = settings.httpUploadUrl.trim();
+
+  if (!url) {
+    throw new Error('HTTP upload URL is not configured.');
+  }
+
+  try {
+    return new URL(url).toString();
+  } catch {
+    throw new Error('HTTP upload URL is invalid.');
+  }
+}
+
+async function readResponseText(response: Response): Promise<string> {
+  const text = await response.text();
+
+  return text.slice(0, 4000);
+}
+
+async function testEndpoint(url: string): Promise<UploadPackageResult> {
+  const response = await fetch(url, {
+    method: 'HEAD',
+  });
+
+  return {
+    ok: true,
+    status: response.status,
+    responseText: `Endpoint is reachable. HEAD responded with status ${response.status}.`,
+    url,
+  };
+}
 
 async function postFormData(input: UploadPackageInput, url: string): Promise<UploadPackageResult> {
   const formData = new FormData();
@@ -21,7 +55,7 @@ async function postFormData(input: UploadPackageInput, url: string): Promise<Upl
     body: formData,
   });
 
-  const responseText = await response.text();
+  const responseText = await readResponseText(response);
 
   if (!response.ok) {
     throw new Error(`HTTP upload failed with status ${response.status}: ${responseText}`);
@@ -30,7 +64,7 @@ async function postFormData(input: UploadPackageInput, url: string): Promise<Upl
   return {
     ok: true,
     status: response.status,
-    responseText,
+    responseText: responseText || 'Upload completed.',
     url,
   };
 }
@@ -44,12 +78,14 @@ export const HttpUploadAdapter: StorageAdapter = {
     return Boolean(settings.httpUploadUrl.trim());
   },
 
-  async uploadPackage(input: UploadPackageInput): Promise<UploadPackageResult> {
-    const url = input.settings.httpUploadUrl.trim();
+  async testConnection(settings): Promise<UploadPackageResult> {
+    const url = getUploadUrl(settings);
 
-    if (!url) {
-      throw new Error('HTTP upload URL is not configured.');
-    }
+    return testEndpoint(url);
+  },
+
+  async uploadPackage(input: UploadPackageInput): Promise<UploadPackageResult> {
+    const url = getUploadUrl(input.settings);
 
     return postFormData(input, url);
   },

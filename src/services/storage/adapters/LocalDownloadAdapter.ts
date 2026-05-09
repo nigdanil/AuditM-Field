@@ -14,6 +14,14 @@ export const LocalDownloadAdapter: StorageAdapter = {
     return true;
   },
 
+  async testConnection(): Promise<UploadPackageResult> {
+    return {
+      ok: true,
+      status: 200,
+      responseText: 'Local download adapter is ready.',
+    };
+  },
+
   async uploadPackage(input: UploadPackageInput): Promise<UploadPackageResult> {
     downloadBlob({
       blob: input.file,

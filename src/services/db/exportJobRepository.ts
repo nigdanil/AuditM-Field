@@ -11,6 +11,28 @@ import type {
 
 import { db } from './db';
 
+const MAX_TEXT_LENGTH = 4000;
+
+function limitText(value: string | undefined): string | undefined {
+  if (!value) {
+    return value;
+  }
+
+  if (value.length <= MAX_TEXT_LENGTH) {
+    return value;
+  }
+
+  return `${value.slice(0, MAX_TEXT_LENGTH)}\n\n[truncated to ${MAX_TEXT_LENGTH} chars]`;
+}
+
+function normalizeUpdateInput(input: UpdateExportJobInput): UpdateExportJobInput {
+  return {
+    ...input,
+    responseText: limitText(input.responseText),
+    errorMessage: limitText(input.errorMessage),
+  };
+}
+
 export async function createExportJob(input: CreateExportJobInput): Promise<ExportJob> {
   const parsedInput = createExportJobInputSchema.parse(input);
   const job = createExportJobModel(parsedInput);
@@ -32,7 +54,7 @@ export async function updateExportJob(
   id: string,
   input: UpdateExportJobInput,
 ): Promise<ExportJob | undefined> {
-  const parsedInput = updateExportJobInputSchema.parse(input);
+  const parsedInput = updateExportJobInputSchema.parse(normalizeUpdateInput(input));
 
   await db.exportJobs.update(id, {
     ...parsedInput,

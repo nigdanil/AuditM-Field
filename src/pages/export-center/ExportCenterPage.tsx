@@ -10,6 +10,7 @@ import {
   Settings,
   Trash2,
   Upload,
+  Wifi,
 } from 'lucide-react';
 
 import { exportJobAdapterLabels, exportJobStatusLabels } from '../../entities/export-job/model';
@@ -92,6 +93,7 @@ export function ExportCenterPage() {
   const [exportingInspectionId, setExportingInspectionId] = useState<string | null>(null);
   const [isImportingPackage, setIsImportingPackage] = useState(false);
   const [isSavingStorageSettings, setIsSavingStorageSettings] = useState(false);
+  const [isTestingStorageAdapter, setIsTestingStorageAdapter] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -142,6 +144,36 @@ export function ExportCenterPage() {
       );
     } finally {
       setIsSavingStorageSettings(false);
+    }
+  };
+
+  const handleTestStorageAdapter = async () => {
+    try {
+      setIsTestingStorageAdapter(true);
+      setErrorMessage(null);
+      setSuccessMessage(null);
+
+      if (!activeStorageAdapter.isConfigured(storageSettings)) {
+        throw new Error(`${activeStorageAdapter.name} is not configured.`);
+      }
+
+      const result = activeStorageAdapter.testConnection
+        ? await activeStorageAdapter.testConnection(storageSettings)
+        : {
+            ok: true,
+            status: 200,
+            responseText: `${activeStorageAdapter.name} does not require connection testing.`,
+          };
+
+      setSuccessMessage(
+        `${activeStorageAdapter.name}: ${result.responseText ?? 'adapter test completed.'}`,
+      );
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : 'Storage adapter test failed.',
+      );
+    } finally {
+      setIsTestingStorageAdapter(false);
     }
   };
 
@@ -234,8 +266,10 @@ export function ExportCenterPage() {
         await updateInspectionStatus(inspection.id, 'EXPORTED');
       }
 
+      const actionLabel = adapterId === 'local-download' ? 'Local download started' : 'Upload completed';
+
       setSuccessMessage(
-        `${adapter.name}: "${inspection.title}" — ${result.manifest.counts.photos} photos, ${result.manifest.counts.annotations} annotations.`,
+        `${actionLabel}: "${inspection.title}" — ${result.manifest.counts.photos} photos, ${result.manifest.counts.annotations} annotations.`,
       );
     } catch (error) {
       await updateExportJob(job.id, {
@@ -259,7 +293,10 @@ export function ExportCenterPage() {
 
       await runStorageAdapter(inspection, adapterId);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Failed to export package.');
+      const prefix = adapterId === 'local-download' ? 'Local download failed' : 'Upload failed';
+      const details = error instanceof Error ? error.message : 'Failed to export package.';
+
+      setErrorMessage(`${prefix}: ${details}`);
     } finally {
       setExportingInspectionId(null);
     }
@@ -274,6 +311,27 @@ export function ExportCenterPage() {
     }
 
     await handleRunStorageAdapter(inspection, job.adapterId);
+  };
+
+  const handleDeleteExportJob = async (job: ExportJob) => {
+    const confirmed = window.confirm(`Delete export job for "${job.inspectionTitle}"?`);
+
+    if (!confirmed) {
+      return;
+    }
+
+    await deleteExportJob(job.id);
+  };
+
+  const handleClearExportJobs = async () => {
+    const confirmed = window.confirm('Clear all export jobs?');
+
+    if (!confirmed) {
+      return;
+    }
+
+    await clearExportJobs();
+    setSuccessMessage('Export jobs cleared.');
   };
 
   return (
@@ -343,15 +401,27 @@ export function ExportCenterPage() {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={handleSaveStorageSettings}
-            disabled={isSavingStorageSettings}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-100 px-4 py-3 text-sm font-medium text-slate-950 transition hover:bg-white disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500"
-          >
-            <Settings size={16} />
-            {isSavingStorageSettings ? 'Saving...' : 'Save adapter settings'}
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={handleTestStorageAdapter}
+              disabled={isTestingStorageAdapter || !activeStorageAdapterConfigured}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm font-medium text-slate-100 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-600"
+            >
+              <Wifi size={16} />
+              {isTestingStorageAdapter ? 'Testing...' : 'Test adapter'}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSaveStorageSettings}
+              disabled={isSavingStorageSettings}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-100 px-4 py-3 text-sm font-medium text-slate-950 transition hover:bg-white disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500"
+            >
+              <Settings size={16} />
+              {isSavingStorageSettings ? 'Saving...' : 'Save adapter settings'}
+            </button>
+          </div>
         </div>
 
         <div className="mt-5 grid gap-4 lg:grid-cols-3">
@@ -412,6 +482,15 @@ export function ExportCenterPage() {
                 {activeStorageAdapterConfigured ? 'configured' : 'not configured'}
               </span>
             </div>
+
+            {storageSettings.adapterId !== 'local-download' ? (
+              <div className="mt-4 rounded-lg border border-dashed border-slate-800 bg-slate-900 p-3 text-xs leading-5 text-slate-400">
+                Mock endpoint tip: for a quick manual test you can use a local mock server,
+                an n8n Webhook node, or any endpoint that accepts multipart/form-data fields
+                named <span className="font-mono text-slate-300">file</span> and{' '}
+                <span className="font-mono text-slate-300">metadata</span>.
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
@@ -579,7 +658,7 @@ export function ExportCenterPage() {
 
           <button
             type="button"
-            onClick={() => void clearExportJobs()}
+            onClick={() => void handleClearExportJobs()}
             className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-900 bg-red-950 px-4 py-3 text-sm text-red-100 transition hover:bg-red-900"
           >
             <Trash2 size={16} />
@@ -653,7 +732,7 @@ export function ExportCenterPage() {
 
                     <button
                       type="button"
-                      onClick={() => void deleteExportJob(job.id)}
+                      onClick={() => void handleDeleteExportJob(job)}
                       className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-900 bg-red-950 px-4 py-3 text-sm text-red-100 transition hover:bg-red-900"
                     >
                       <Trash2 size={16} />
