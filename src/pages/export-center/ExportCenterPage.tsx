@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 
 import { exportJobAdapterLabels, exportJobStatusLabels } from '../../entities/export-job/model';
+import { AiSuggestionsImportPanel } from '../../features/import-ai-suggestions/AiSuggestionsImportPanel';
 import type { ExportJob, ExportJobAdapterId } from '../../entities/export-job/types';
 import { loadActiveConfig } from '../../core/config/configStorage';
 import { inspectionStatusLabels } from '../../entities/inspection/model';
@@ -443,6 +444,8 @@ export function ExportCenterPage() {
           </label>
         </div>
       </div>
+
+      <AiSuggestionsImportPanel />
 
       <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
