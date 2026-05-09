@@ -68,6 +68,7 @@ export function createImageAnnotationRecord(
     label: parsedInput.label,
     source: parsedInput.source,
     rawAnnotation,
+    attributes: parsedInput.attributes,
     createdAt: now,
     updatedAt: now,
     comment: normalizeOptionalText(parsedInput.comment),

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
@@ -22,10 +22,12 @@ import { loadActiveConfig } from '../../core/config/configStorage';
 import type { AnnotationTypeConfig } from '../../core/config/types';
 import type { ImageAnnotationRecord } from '../../entities/annotation/types';
 import type { PhotoRecord } from '../../entities/photo/types';
+import { DynamicFieldsForm } from '../../features/fill-dynamic-form/DynamicFieldsForm';
 import {
   deleteAnnotationByAnnotoriousPayload,
   deleteAnnotationById,
   listAnnotationsByPhoto,
+  updateAnnotationAttributes,
   updateAnnotationRawPayload,
   upsertAnnotationFromAnnotorious,
 } from '../../services/db/annotationRepository';
@@ -43,11 +45,76 @@ function formatDate(value: string): string {
   return new Date(value).toLocaleString();
 }
 
+function stringifyRawAnnotation(rawAnnotation: unknown): string {
+  try {
+    return JSON.stringify(rawAnnotation) ?? '';
+  } catch {
+    return String(rawAnnotation);
+  }
+}
+
+function getSelectedAnnotoriousAnnotation(annotator: unknown): unknown | null {
+  if (!annotator || typeof annotator !== 'object') {
+    return null;
+  }
+
+  const annotatorApi = annotator as { getSelected?: () => unknown };
+
+  if (typeof annotatorApi.getSelected !== 'function') {
+    return null;
+  }
+
+  const selected = annotatorApi.getSelected();
+
+  if (Array.isArray(selected)) {
+    return selected[0] ?? null;
+  }
+
+  return selected ?? null;
+}
+
+function isDisplayableAttributeValue(value: unknown): boolean {
+  if (value === null || value === undefined) {
+    return false;
+  }
+
+  if (typeof value === 'string') {
+    return value.trim().length > 0;
+  }
+
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
+
+  return true;
+}
+
+function formatAttributeKey(key: string): string {
+  return key.replaceAll('_', ' ');
+}
+
+function formatAttributeValue(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value.map(String).join(', ');
+  }
+
+  if (typeof value === 'boolean') {
+    return value ? 'Yes' : 'No';
+  }
+
+  if (value === null || value === undefined) {
+    return '';
+  }
+
+  return String(value);
+}
+
 function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
   const annotator = useAnnotator();
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [activeConfigState] = useState(() => loadActiveConfig());
   const [selectedAnnotationTypeId, setSelectedAnnotationTypeId] = useState('');
+  const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const annotationRecords = useLiveQuery(
@@ -55,6 +122,8 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
     [photo.id],
     [],
   );
+  const annotationRecordsRef = useRef<ImageAnnotationRecord[]>(annotationRecords);
+  const selectedAnnotationIdRef = useRef<string | null>(selectedAnnotationId);
   const [visibleAnnotationTypeIds, setVisibleAnnotationTypeIds] = useState<string[]>([]);
 
   const annotationTypes = useMemo(() => {
@@ -62,6 +131,23 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
 
     return configuredTypes.length > 0 ? configuredTypes : [fallbackAnnotationType];
   }, [activeConfigState]);
+
+  const annotationForm = activeConfigState?.config.annotationForm ?? [];
+  const dictionaries = activeConfigState?.config.dictionaries ?? {};
+
+  const rawAnnotationRevision = useMemo(() => {
+    return annotationRecords
+      .map((record) => `${record.id}:${stringifyRawAnnotation(record.rawAnnotation)}`)
+      .join('|');
+  }, [annotationRecords]);
+
+  useEffect(() => {
+    annotationRecordsRef.current = annotationRecords;
+  }, [annotationRecords]);
+
+  useEffect(() => {
+    selectedAnnotationIdRef.current = selectedAnnotationId;
+  }, [selectedAnnotationId]);
 
   useEffect(() => {
     setVisibleAnnotationTypeIds((currentVisibleTypes) => {
@@ -91,6 +177,16 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
     return new Map(annotationRecords.map((annotation) => [annotation.id, annotation]));
   }, [annotationRecords]);
 
+  const selectedAnnotation = selectedAnnotationId
+    ? annotationRecordById.get(selectedAnnotationId)
+    : undefined;
+
+  useEffect(() => {
+    if (selectedAnnotationId && !annotationRecordById.has(selectedAnnotationId)) {
+      setSelectedAnnotationId(null);
+    }
+  }, [annotationRecordById, selectedAnnotationId]);
+
   const toAnnotationColor = (color: string | undefined): Color => {
     if (color?.startsWith('#') || color?.startsWith('rgb(') || color?.startsWith('rgba(')) {
       return color as Color;
@@ -112,6 +208,25 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
 
     return typeof id === 'string' ? id : null;
   };
+
+  const flushSelectedAnnotationGeometry = useCallback(async () => {
+    if (!annotator) {
+      return undefined;
+    }
+
+    const selectedAnnotoriousAnnotation = getSelectedAnnotoriousAnnotation(annotator);
+    const annotationId =
+      getRawAnnotationId(selectedAnnotoriousAnnotation) ?? selectedAnnotationIdRef.current;
+
+    if (!selectedAnnotoriousAnnotation || !annotationId) {
+      return undefined;
+    }
+
+    return updateAnnotationRawPayload({
+      id: annotationId,
+      rawAnnotation: selectedAnnotoriousAnnotation,
+    });
+  }, [annotator]);
 
   const annotationStyle = (
     annotation: ImageAnnotation,
@@ -169,12 +284,48 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
       return;
     }
 
-    const rawAnnotations = annotationRecords.map(
+    const rawAnnotations = annotationRecordsRef.current.map(
       (record) => record.rawAnnotation as Partial<unknown>,
     );
 
     annotator.setAnnotations(rawAnnotations, true);
-  }, [annotator, annotationRecords]);
+  }, [annotator, rawAnnotationRevision]);
+
+  useEffect(() => {
+    if (!annotator || !selectedAnnotationId) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      annotator.setSelected(selectedAnnotationId, true);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [annotator, rawAnnotationRevision, selectedAnnotationId]);
+
+  useEffect(() => {
+    if (!annotator) {
+      return;
+    }
+
+    const handlePointerUp = () => {
+      window.setTimeout(() => {
+        void flushSelectedAnnotationGeometry();
+      }, 50);
+    };
+
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('mouseup', handlePointerUp);
+    window.addEventListener('touchend', handlePointerUp);
+
+    return () => {
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('mouseup', handlePointerUp);
+      window.removeEventListener('touchend', handlePointerUp);
+    };
+  }, [annotator, flushSelectedAnnotationGeometry]);
 
   useEffect(() => {
     if (!annotator) {
@@ -182,7 +333,7 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
     }
 
     const handleCreateAnnotation = async (annotation: unknown) => {
-      await upsertAnnotationFromAnnotorious({
+      const savedAnnotation = await upsertAnnotationFromAnnotorious({
         photoId: photo.id,
         inspectionId: photo.inspectionId,
         type: effectiveAnnotationType.id,
@@ -190,19 +341,34 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
         rawAnnotation: annotation,
       });
 
-      setStatusMessage(`Annotation saved as ${effectiveAnnotationType.label}.`);
+      setSelectedAnnotationId(savedAnnotation.id);
+      setStatusMessage(`Annotation saved as ${effectiveAnnotationType.label}. Fill the form below.`);
     };
 
     const handleUpdateAnnotation = async (annotation: unknown) => {
-      await updateAnnotationRawPayload({
+      const annotationId = getRawAnnotationId(annotation) ?? selectedAnnotationIdRef.current ?? undefined;
+      const updatedAnnotation = await updateAnnotationRawPayload({
+        id: annotationId,
         rawAnnotation: annotation,
       });
 
-      setStatusMessage('Annotation updated.');
+      if (!updatedAnnotation) {
+        setStatusMessage('Annotation geometry update was not saved. Select the annotation and try again.');
+        return;
+      }
+
+      setSelectedAnnotationId(updatedAnnotation.id);
+      setStatusMessage('Annotation geometry updated.');
     };
 
     const handleDeleteAnnotation = async (annotation: unknown) => {
+      const annotationId = getRawAnnotationId(annotation);
+
       await deleteAnnotationByAnnotoriousPayload(annotation);
+
+      setSelectedAnnotationId((currentAnnotationId) =>
+        currentAnnotationId === annotationId ? null : currentAnnotationId,
+      );
       setStatusMessage('Annotation deleted.');
     };
 
@@ -217,6 +383,11 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
     };
   }, [annotator, effectiveAnnotationType, photo.id, photo.inspectionId]);
 
+  const handleSelectAnnotation = (annotationId: string) => {
+    setSelectedAnnotationId(annotationId);
+    annotator?.setSelected(annotationId, true);
+  };
+
   const handleDeleteAnnotationFromPanel = async (annotationId: string) => {
     const confirmed = window.confirm('Delete this annotation?');
 
@@ -229,7 +400,26 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
     }
 
     await deleteAnnotationById(annotationId);
+
+    setSelectedAnnotationId((currentAnnotationId) =>
+      currentAnnotationId === annotationId ? null : currentAnnotationId,
+    );
     setStatusMessage('Annotation deleted.');
+  };
+
+  const handleSaveAnnotationForm = async (attributes: Record<string, unknown>) => {
+    if (!selectedAnnotation) {
+      return;
+    }
+
+    await flushSelectedAnnotationGeometry();
+
+    await updateAnnotationAttributes({
+      id: selectedAnnotation.id,
+      attributes,
+    });
+
+    setStatusMessage('Annotation form saved.');
   };
 
   if (!objectUrl) {
@@ -296,7 +486,9 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
 
           <div className="rounded-xl border border-dashed border-slate-700 bg-slate-950 p-4 text-slate-400">
             Draw a rectangle on the photo. Created annotations are saved locally in IndexedDB.
+            After creating or selecting an annotation, fill the dynamic form below.
           </div>
+
           <div className="rounded-xl bg-slate-950 p-4">
             <div className="flex items-center justify-between gap-3">
               <h3 className="font-semibold text-slate-100">Visible types</h3>
@@ -354,7 +546,8 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
                     key={annotation.id}
                     annotation={annotation}
                     color={getAnnotationColor(annotation.type)}
-                    onSelect={() => annotator?.setSelected(annotation.id, true)}
+                    isSelected={selectedAnnotationId === annotation.id}
+                    onSelect={() => handleSelectAnnotation(annotation.id)}
                     onDelete={() => handleDeleteAnnotationFromPanel(annotation.id)}
                   />
                 ))}
@@ -362,6 +555,30 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
             ) : (
               <div className="mt-4 rounded-xl border border-dashed border-slate-700 p-4 text-center text-slate-500">
                 No annotations yet.
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl bg-slate-950 p-4">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h3 className="font-semibold text-slate-100">Dynamic form</h3>
+              {selectedAnnotation ? (
+                <span className="rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-300">
+                  {selectedAnnotation.label}
+                </span>
+              ) : null}
+            </div>
+
+            {selectedAnnotation ? (
+              <DynamicFieldsForm
+                fields={annotationForm}
+                dictionaries={dictionaries}
+                values={selectedAnnotation.attributes ?? {}}
+                onSubmit={handleSaveAnnotationForm}
+              />
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate-700 bg-slate-950 p-4 text-sm text-slate-500">
+                Select an annotation from the list or create a new one to fill the form.
               </div>
             )}
           </div>
@@ -374,14 +591,20 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
 function AnnotationListItem({
   annotation,
   color,
+  isSelected,
   onSelect,
   onDelete,
 }: {
   annotation: ImageAnnotationRecord;
   color: Color;
+  isSelected: boolean;
   onSelect: () => void;
   onDelete: () => void;
 }) {
+  const visibleAttributes = Object.entries(annotation.attributes ?? {})
+    .filter(([, value]) => isDisplayableAttributeValue(value))
+    .slice(0, 4);
+
   return (
     <div
       role="button"
@@ -393,7 +616,10 @@ function AnnotationListItem({
           onSelect();
         }
       }}
-      className="cursor-pointer rounded-xl border border-slate-800 bg-slate-900 p-3 text-left transition hover:border-slate-600 hover:bg-slate-800/70"
+      className={[
+        'cursor-pointer rounded-xl border bg-slate-900 p-3 text-left transition hover:border-slate-600 hover:bg-slate-800/70',
+        isSelected ? 'border-sky-500' : 'border-slate-800',
+      ].join(' ')}
     >
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -419,7 +645,25 @@ function AnnotationListItem({
       <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
         <span className="rounded-full bg-slate-800 px-3 py-1">{annotation.type}</span>
         <span className="rounded-full bg-slate-800 px-3 py-1">{annotation.source}</span>
+        {isSelected ? (
+          <span className="rounded-full bg-sky-950 px-3 py-1 text-sky-100">selected</span>
+        ) : null}
       </div>
+
+      {visibleAttributes.length > 0 ? (
+        <div className="mt-3 space-y-1 rounded-lg bg-slate-950 p-3 text-xs">
+          {visibleAttributes.map(([key, value]) => (
+            <div key={key} className="grid grid-cols-[90px_1fr] gap-2">
+              <span className="capitalize text-slate-500">{formatAttributeKey(key)}</span>
+              <span className="break-words text-slate-300">{formatAttributeValue(value)}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="mt-3 rounded-lg border border-dashed border-slate-800 p-3 text-xs text-slate-600">
+          Form is not filled yet.
+        </div>
+      )}
 
       <div className="mt-3 text-xs text-slate-600">
         Updated: {formatDate(annotation.updatedAt)}

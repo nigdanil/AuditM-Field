@@ -7,6 +7,21 @@ import type { ImageAnnotationRecord } from '../../entities/annotation/types';
 
 import { db } from './db';
 
+function attachAnnotationId(rawAnnotation: unknown, id: string): unknown {
+  if (getAnnotoriousAnnotationId(rawAnnotation)) {
+    return rawAnnotation;
+  }
+
+  if (rawAnnotation && typeof rawAnnotation === 'object') {
+    return {
+      ...(rawAnnotation as Record<string, unknown>),
+      id,
+    };
+  }
+
+  return { id, value: rawAnnotation };
+}
+
 export async function upsertAnnotationFromAnnotorious(input: {
   photoId: string;
   inspectionId: string;
@@ -35,6 +50,7 @@ export async function upsertAnnotationFromAnnotorious(input: {
     type: input.type,
     label: input.label,
     rawAnnotation,
+    attributes: {},
     source: 'human',
   });
 
@@ -45,8 +61,9 @@ export async function upsertAnnotationFromAnnotorious(input: {
 
 export async function updateAnnotationRawPayload(input: {
   rawAnnotation: unknown;
+  id?: string;
 }): Promise<ImageAnnotationRecord | undefined> {
-  const annotationId = getAnnotoriousAnnotationId(input.rawAnnotation);
+  const annotationId = getAnnotoriousAnnotationId(input.rawAnnotation) ?? input.id;
 
   if (!annotationId) {
     return undefined;
@@ -58,9 +75,32 @@ export async function updateAnnotationRawPayload(input: {
     return undefined;
   }
 
+  const rawAnnotation = attachAnnotationId(input.rawAnnotation, annotationId);
+
   const updatedAnnotation: ImageAnnotationRecord = {
     ...existingAnnotation,
-    rawAnnotation: input.rawAnnotation,
+    rawAnnotation,
+    updatedAt: new Date().toISOString(),
+  };
+
+  await db.annotations.put(updatedAnnotation);
+
+  return updatedAnnotation;
+}
+
+export async function updateAnnotationAttributes(input: {
+  id: string;
+  attributes: Record<string, unknown>;
+}): Promise<ImageAnnotationRecord | undefined> {
+  const existingAnnotation = await db.annotations.get(input.id);
+
+  if (!existingAnnotation) {
+    return undefined;
+  }
+
+  const updatedAnnotation: ImageAnnotationRecord = {
+    ...existingAnnotation,
+    attributes: input.attributes,
     updatedAt: new Date().toISOString(),
   };
 
