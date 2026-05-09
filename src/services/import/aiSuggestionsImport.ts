@@ -42,6 +42,7 @@ export type ImportAiSuggestionsResult = {
   importedAt: string;
   suggestionsTotal: number;
   annotationsImported: number;
+  skippedDuplicates: number;
   affectedPhotoIds: string[];
   firstPhotoId?: string;
   reportSummary?: string;
@@ -217,14 +218,29 @@ export async function importAiSuggestionsData(
     }),
   );
 
+  const existingAnnotations = await db.annotations.bulkGet(
+    annotationRecords.map((annotation) => annotation.id),
+  );
+
+  const existingAnnotationIds = new Set(
+    existingAnnotations
+      .filter(Boolean)
+      .map((annotation) => annotation?.id)
+      .filter((id): id is string => Boolean(id)),
+  );
+
+  const newAnnotationRecords = annotationRecords.filter(
+    (annotation) => !existingAnnotationIds.has(annotation.id),
+  );
+
   await db.transaction('rw', db.annotations, async () => {
-    if (annotationRecords.length > 0) {
-      await db.annotations.bulkPut(annotationRecords);
+    if (newAnnotationRecords.length > 0) {
+      await db.annotations.bulkPut(newAnnotationRecords);
     }
   });
 
   const affectedPhotoIds = Array.from(
-    new Set(annotationRecords.map((annotation) => annotation.photoId)),
+    new Set(newAnnotationRecords.map((annotation) => annotation.photoId)),
   );
 
   return {
@@ -232,9 +248,10 @@ export async function importAiSuggestionsData(
     provider: parsedPackage.provider,
     importedAt,
     suggestionsTotal: parsedPackage.suggestions.length,
-    annotationsImported: annotationRecords.length,
+    annotationsImported: newAnnotationRecords.length,
+    skippedDuplicates: annotationRecords.length - newAnnotationRecords.length,
     affectedPhotoIds,
-    firstPhotoId: affectedPhotoIds[0],
+    firstPhotoId: affectedPhotoIds[0] ?? parsedPackage.suggestions[0]?.photoId,
     reportSummary: parsedPackage.report?.summary,
     warnings: parsedPackage.report?.warnings ?? [],
   };

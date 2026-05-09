@@ -22,6 +22,7 @@ import {
   CheckCircle2,
   Filter,
   ImagePlus,
+  Info,
   Trash2,
   XCircle,
 } from 'lucide-react';
@@ -32,6 +33,7 @@ import type { AnnotationSource, ImageAnnotationRecord } from '../../entities/ann
 import type { PhotoRecord } from '../../entities/photo/types';
 import { DynamicFieldsForm } from '../../features/fill-dynamic-form/DynamicFieldsForm';
 import {
+  clearPendingAiAnnotationsByPhoto,
   deleteAnnotationByAnnotoriousPayload,
   deleteAnnotationById,
   listAnnotationsByPhoto,
@@ -50,13 +52,14 @@ const fallbackAnnotationType: AnnotationTypeConfig = {
 };
 const fallbackAnnotationColor: Color = '#38bdf8';
 
-type AnnotationSourceFilter = 'all' | AnnotationSource;
+type AnnotationSourceFilter = 'all' | AnnotationSource | 'pending_ai';
 
 const annotationSourceFilterLabels: Record<AnnotationSourceFilter, string> = {
   all: 'All',
   human: 'Human',
   ai: 'AI',
   imported: 'Imported',
+  pending_ai: 'Pending AI',
 };
 
 function formatDate(value: string): string {
@@ -143,6 +146,46 @@ function getAiReviewStatus(annotation: ImageAnnotationRecord): string {
   return typeof value === 'string' && value.trim() ? value : 'pending';
 }
 
+function isPendingAiAnnotation(annotation: ImageAnnotationRecord): boolean {
+  return annotation.source === 'ai' && getAiReviewStatus(annotation) === 'pending';
+}
+
+function isAcceptedAiAnnotation(annotation: ImageAnnotationRecord): boolean {
+  return (
+    annotation.source === 'human' &&
+    annotation.attributes?._aiOriginalSource === 'ai' &&
+    getAiReviewStatus(annotation) === 'accepted'
+  );
+}
+
+function hasAiMetadata(annotation: ImageAnnotationRecord): boolean {
+  return Object.keys(annotation.attributes ?? {}).some((key) => key.startsWith('_ai'));
+}
+
+function formatAiMetadataValue(value: unknown): string {
+  if (value === null || value === undefined) {
+    return 'not set';
+  }
+
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  if (typeof value === 'number') {
+    return String(value);
+  }
+
+  if (typeof value === 'boolean') {
+    return value ? 'true' : 'false';
+  }
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
 function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
   const annotator = useAnnotator();
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
@@ -223,6 +266,10 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
         acc.all += 1;
         acc[annotation.source] += 1;
 
+        if (isPendingAiAnnotation(annotation)) {
+          acc.pending_ai += 1;
+        }
+
         return acc;
       },
       {
@@ -230,12 +277,13 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
         human: 0,
         ai: 0,
         imported: 0,
+        pending_ai: 0,
       },
     );
   }, [annotationRecords]);
 
-  const aiAnnotations = useMemo(() => {
-    return annotationRecords.filter((annotation) => annotation.source === 'ai');
+  const pendingAiAnnotations = useMemo(() => {
+    return annotationRecords.filter(isPendingAiAnnotation);
   }, [annotationRecords]);
 
   const visibleAnnotationRecords = useMemo(() => {
@@ -246,6 +294,10 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
 
       if (annotationSourceFilter === 'all') {
         return true;
+      }
+
+      if (annotationSourceFilter === 'pending_ai') {
+        return isPendingAiAnnotation(annotation);
       }
 
       return annotation.source === annotationSourceFilter;
@@ -516,6 +568,35 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
     setStatusMessage('AI suggestion accepted. Source changed to human.');
   };
 
+  const handleClearPendingAiAnnotations = async () => {
+    if (pendingAiAnnotations.length === 0) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Clear ${pendingAiAnnotations.length} pending AI suggestion(s) for this photo?`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    pendingAiAnnotations.forEach((annotation) => {
+      annotator?.removeAnnotation(annotation.id);
+    });
+
+    const deletedCount = await clearPendingAiAnnotationsByPhoto(photo.id);
+
+    setSelectedAnnotationId((currentAnnotationId) =>
+      currentAnnotationId &&
+      pendingAiAnnotations.some((annotation) => annotation.id === currentAnnotationId)
+        ? null
+        : currentAnnotationId,
+    );
+
+    setStatusMessage(`Cleared ${deletedCount} pending AI suggestion(s).`);
+  };
+
   const handleRejectAiAnnotation = async (annotation: ImageAnnotationRecord) => {
     if (annotation.source !== 'ai') {
       return;
@@ -672,7 +753,7 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
-              {(['all', 'human', 'ai', 'imported'] as AnnotationSourceFilter[]).map((source) => {
+              {(['all', 'human', 'ai', 'pending_ai', 'imported'] as AnnotationSourceFilter[]).map((source) => {
                 const isActive = annotationSourceFilter === source;
 
                 return (
@@ -697,7 +778,7 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
             </div>
           </div>
 
-          {aiAnnotations.length > 0 ? (
+          {pendingAiAnnotations.length > 0 ? (
             <div className="rounded-xl border border-sky-900 bg-sky-950/30 p-4 text-sky-100">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="inline-flex items-center gap-2 font-semibold">
@@ -705,14 +786,23 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
                   AI review
                 </h3>
                 <span className="rounded-full bg-sky-950 px-3 py-1 text-xs">
-                  {aiAnnotations.length} pending
+                  {pendingAiAnnotations.length} pending
                 </span>
               </div>
 
               <p className="mt-2 text-xs leading-5 text-sky-100/80">
-                AI suggestions are not final. Accept changes source to human. Reject deletes the
-                suggestion.
+                AI suggestions are pending human review. Accept changes source to human. Reject
+                deletes the suggestion.
               </p>
+
+              <button
+                type="button"
+                onClick={handleClearPendingAiAnnotations}
+                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-sky-800 bg-sky-950 px-3 py-2 text-xs font-medium text-sky-100 transition hover:bg-sky-900"
+              >
+                <XCircle size={14} />
+                Clear pending AI suggestions
+              </button>
             </div>
           ) : null}
 
@@ -810,6 +900,8 @@ function AnnotationListItem({
   const aiConfidence = getAiConfidence(annotation);
   const aiReviewStatus = getAiReviewStatus(annotation);
   const isAiSuggestion = annotation.source === 'ai';
+  const isAcceptedAi = isAcceptedAiAnnotation(annotation);
+  const showAiMetadata = hasAiMetadata(annotation);
 
   return (
     <div
@@ -865,6 +957,11 @@ function AnnotationListItem({
             {aiReviewStatus}
           </span>
         ) : null}
+        {isAcceptedAi ? (
+          <span className="rounded-full bg-emerald-950 px-3 py-1 text-emerald-100">
+            accepted AI
+          </span>
+        ) : null}
         {aiConfidence !== null ? (
           <span className="rounded-full bg-slate-800 px-3 py-1">
             confidence: {Math.round(aiConfidence * 100)}%
@@ -901,6 +998,28 @@ function AnnotationListItem({
             Reject
           </button>
         </div>
+      ) : null}
+
+      {showAiMetadata ? (
+        <details className="mt-3 rounded-lg border border-slate-800 bg-slate-950 p-3 text-xs">
+          <summary className="inline-flex cursor-pointer items-center gap-2 text-slate-300">
+            <Info size={13} />
+            AI metadata
+          </summary>
+
+          <div className="mt-3 space-y-1">
+            {Object.entries(annotation.attributes ?? {})
+              .filter(([key]) => isInternalAiAttributeKey(key))
+              .map(([key, value]) => (
+                <div key={key} className="grid grid-cols-[110px_1fr] gap-2">
+                  <span className="text-slate-500">{key}</span>
+                  <span className="break-words text-slate-300">
+                    {formatAiMetadataValue(value)}
+                  </span>
+                </div>
+              ))}
+          </div>
+        </details>
       ) : null}
 
       {visibleAttributes.length > 0 ? (

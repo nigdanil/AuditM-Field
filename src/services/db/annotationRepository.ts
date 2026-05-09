@@ -22,6 +22,16 @@ function attachAnnotationId(rawAnnotation: unknown, id: string): unknown {
   return { id, value: rawAnnotation };
 }
 
+function isPendingAiAnnotation(annotation: ImageAnnotationRecord): boolean {
+  if (annotation.source !== 'ai') {
+    return false;
+  }
+
+  const reviewStatus = annotation.attributes?._aiReviewStatus;
+
+  return typeof reviewStatus === 'string' ? reviewStatus === 'pending' : true;
+}
+
 export async function upsertAnnotationFromAnnotorious(input: {
   photoId: string;
   inspectionId: string;
@@ -135,6 +145,19 @@ export async function updateAnnotationReviewState(input: {
   await db.annotations.put(updatedAnnotation);
 
   return updatedAnnotation;
+}
+
+export async function clearPendingAiAnnotationsByPhoto(photoId: string): Promise<number> {
+  const annotations = await db.annotations.where('photoId').equals(photoId).toArray();
+  const pendingAiIds = annotations.filter(isPendingAiAnnotation).map((annotation) => annotation.id);
+
+  if (pendingAiIds.length === 0) {
+    return 0;
+  }
+
+  await db.annotations.bulkDelete(pendingAiIds);
+
+  return pendingAiIds.length;
 }
 
 export async function listAnnotationsByPhoto(photoId: string): Promise<ImageAnnotationRecord[]> {

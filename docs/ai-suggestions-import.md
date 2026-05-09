@@ -43,11 +43,14 @@ source: ai
 
 ## AI review
 
-In Annotator, AI suggestions can be reviewed by a human:
+In Annotator, AI suggestions are pending human review.
+
+Actions:
 
 ```text
 Accept -> source changes from ai to human
 Reject -> AI annotation is deleted
+Clear pending AI suggestions -> removes all pending AI suggestions from the current photo
 ```
 
 Available filters:
@@ -56,15 +59,38 @@ Available filters:
 All
 Human
 AI
+Pending AI
 Imported
 ```
 
-AI suggestions also display:
+AI suggestions display:
 
 ```text
 confidence
 review status
 source badge
+AI metadata details
+```
+
+Accepted AI suggestions become human annotations, but keep internal metadata:
+
+```text
+_aiReviewStatus: accepted
+_aiAcceptedAt
+_aiOriginalSource: ai
+```
+
+This allows the UI to show an `accepted AI` badge.
+
+## Duplicate protection
+
+If the same `ai-suggestions.json` file is imported again, annotations with already existing suggestion ids are skipped.
+
+Import result includes:
+
+```text
+annotationsImported
+skippedDuplicates
 ```
 
 ## Minimal JSON format
@@ -117,7 +143,8 @@ AuditM-Field validates:
 - JSON shape;
 - source === "ai";
 - inspectionId exists in local IndexedDB;
-- every suggestion.photoId exists in that inspection.
+- every suggestion.photoId exists in that inspection;
+- duplicate suggestion ids are skipped.
 ```
 
 Then it saves suggestions as annotations:
@@ -137,4 +164,4 @@ _aiAcceptedAt
 _aiOriginalSource
 ```
 
-These fields are hidden from normal attribute preview in the annotation list.
+These fields are hidden from normal attribute preview, but can be viewed in the `AI metadata` details block.

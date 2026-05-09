@@ -201,6 +201,9 @@ export function AiSuggestionsImportPanel() {
             <div>
               Demo AI suggestion generated and imported: {demoImportResult.annotationsImported}/
               {demoImportResult.suggestionsCount}.
+              {demoImportResult.skippedDuplicates > 0
+                ? ` Skipped duplicates: ${demoImportResult.skippedDuplicates}.`
+                : ''}
             </div>
           </div>
 
@@ -234,6 +237,7 @@ export function AiSuggestionsImportPanel() {
             <CheckCircle2 size={18} />
             <div>
               Imported {result.annotationsImported}/{result.suggestionsTotal} AI suggestions.
+              {result.skippedDuplicates > 0 ? ` Skipped duplicates: ${result.skippedDuplicates}.` : ''}
             </div>
           </div>
 

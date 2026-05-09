@@ -16,6 +16,7 @@ export type GenerateDemoAiSuggestionsResult = {
 
 export type GenerateAndImportDemoAiSuggestionsResult = GenerateDemoAiSuggestionsResult & {
   annotationsImported: number;
+  skippedDuplicates: number;
   firstPhotoId?: string;
 };
 
@@ -173,6 +174,7 @@ export async function generateAndImportDemoAiSuggestions(): Promise<GenerateAndI
   return {
     ...result,
     annotationsImported: importResult.annotationsImported,
+    skippedDuplicates: importResult.skippedDuplicates,
     firstPhotoId: importResult.firstPhotoId,
   };
 }
