@@ -16,11 +16,19 @@ import type {
 } from '@annotorious/react';
 
 import '@annotorious/react/annotorious-react.css';
-import { ArrowLeft, ImagePlus, Trash2 } from 'lucide-react';
+import {
+  ArrowLeft,
+  Bot,
+  CheckCircle2,
+  Filter,
+  ImagePlus,
+  Trash2,
+  XCircle,
+} from 'lucide-react';
 
 import { loadActiveConfig } from '../../core/config/configStorage';
 import type { AnnotationTypeConfig } from '../../core/config/types';
-import type { ImageAnnotationRecord } from '../../entities/annotation/types';
+import type { AnnotationSource, ImageAnnotationRecord } from '../../entities/annotation/types';
 import type { PhotoRecord } from '../../entities/photo/types';
 import { DynamicFieldsForm } from '../../features/fill-dynamic-form/DynamicFieldsForm';
 import {
@@ -29,6 +37,7 @@ import {
   listAnnotationsByPhoto,
   updateAnnotationAttributes,
   updateAnnotationRawPayload,
+  updateAnnotationReviewState,
   upsertAnnotationFromAnnotorious,
 } from '../../services/db/annotationRepository';
 import { getPhotoById } from '../../services/db/photoRepository';
@@ -40,6 +49,15 @@ const fallbackAnnotationType: AnnotationTypeConfig = {
   color: '#38bdf8',
 };
 const fallbackAnnotationColor: Color = '#38bdf8';
+
+type AnnotationSourceFilter = 'all' | AnnotationSource;
+
+const annotationSourceFilterLabels: Record<AnnotationSourceFilter, string> = {
+  all: 'All',
+  human: 'Human',
+  ai: 'AI',
+  imported: 'Imported',
+};
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleString();
@@ -71,6 +89,10 @@ function getSelectedAnnotoriousAnnotation(annotator: unknown): unknown | null {
   }
 
   return selected ?? null;
+}
+
+function isInternalAiAttributeKey(key: string): boolean {
+  return key.startsWith('_ai');
 }
 
 function isDisplayableAttributeValue(value: unknown): boolean {
@@ -109,6 +131,18 @@ function formatAttributeValue(value: unknown): string {
   return String(value);
 }
 
+function getAiConfidence(annotation: ImageAnnotationRecord): number | null {
+  const value = annotation.attributes?._aiConfidence;
+
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function getAiReviewStatus(annotation: ImageAnnotationRecord): string {
+  const value = annotation.attributes?._aiReviewStatus;
+
+  return typeof value === 'string' && value.trim() ? value : 'pending';
+}
+
 function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
   const annotator = useAnnotator();
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
@@ -116,6 +150,8 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
   const [selectedAnnotationTypeId, setSelectedAnnotationTypeId] = useState('');
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [annotationSourceFilter, setAnnotationSourceFilter] =
+    useState<AnnotationSourceFilter>('all');
 
   const annotationRecords = useLiveQuery(
     () => listAnnotationsByPhoto(photo.id),
@@ -181,11 +217,55 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
     ? annotationRecordById.get(selectedAnnotationId)
     : undefined;
 
+  const sourceCounts = useMemo(() => {
+    return annotationRecords.reduce<Record<AnnotationSourceFilter, number>>(
+      (acc, annotation) => {
+        acc.all += 1;
+        acc[annotation.source] += 1;
+
+        return acc;
+      },
+      {
+        all: 0,
+        human: 0,
+        ai: 0,
+        imported: 0,
+      },
+    );
+  }, [annotationRecords]);
+
+  const aiAnnotations = useMemo(() => {
+    return annotationRecords.filter((annotation) => annotation.source === 'ai');
+  }, [annotationRecords]);
+
+  const visibleAnnotationRecords = useMemo(() => {
+    return annotationRecords.filter((annotation) => {
+      if (!visibleAnnotationTypeIds.includes(annotation.type)) {
+        return false;
+      }
+
+      if (annotationSourceFilter === 'all') {
+        return true;
+      }
+
+      return annotation.source === annotationSourceFilter;
+    });
+  }, [annotationRecords, annotationSourceFilter, visibleAnnotationTypeIds]);
+
   useEffect(() => {
     if (selectedAnnotationId && !annotationRecordById.has(selectedAnnotationId)) {
       setSelectedAnnotationId(null);
     }
   }, [annotationRecordById, selectedAnnotationId]);
+
+  useEffect(() => {
+    if (
+      selectedAnnotationId &&
+      !visibleAnnotationRecords.some((annotation) => annotation.id === selectedAnnotationId)
+    ) {
+      setSelectedAnnotationId(null);
+    }
+  }, [selectedAnnotationId, visibleAnnotationRecords]);
 
   const toAnnotationColor = (color: string | undefined): Color => {
     if (color?.startsWith('#') || color?.startsWith('rgb(') || color?.startsWith('rgba(')) {
@@ -257,7 +337,15 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
       return true;
     }
 
-    return visibleAnnotationTypeIds.includes(annotationRecord.type);
+    if (!visibleAnnotationTypeIds.includes(annotationRecord.type)) {
+      return false;
+    }
+
+    if (annotationSourceFilter === 'all') {
+      return true;
+    }
+
+    return annotationRecord.source === annotationSourceFilter;
   };
 
   const toggleVisibleAnnotationType = (typeId: string) => {
@@ -407,6 +495,50 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
     setStatusMessage('Annotation deleted.');
   };
 
+  const handleAcceptAiAnnotation = async (annotation: ImageAnnotationRecord) => {
+    if (annotation.source !== 'ai') {
+      return;
+    }
+
+    await flushSelectedAnnotationGeometry();
+
+    const updatedAnnotation = await updateAnnotationReviewState({
+      id: annotation.id,
+      source: 'human',
+      attributesPatch: {
+        _aiReviewStatus: 'accepted',
+        _aiAcceptedAt: new Date().toISOString(),
+        _aiOriginalSource: 'ai',
+      },
+    });
+
+    setSelectedAnnotationId(updatedAnnotation?.id ?? annotation.id);
+    setStatusMessage('AI suggestion accepted. Source changed to human.');
+  };
+
+  const handleRejectAiAnnotation = async (annotation: ImageAnnotationRecord) => {
+    if (annotation.source !== 'ai') {
+      return;
+    }
+
+    const confirmed = window.confirm('Reject this AI suggestion? The annotation will be deleted.');
+
+    if (!confirmed) {
+      return;
+    }
+
+    if (annotator) {
+      annotator.removeAnnotation(annotation.id);
+    }
+
+    await deleteAnnotationById(annotation.id);
+
+    setSelectedAnnotationId((currentAnnotationId) =>
+      currentAnnotationId === annotation.id ? null : currentAnnotationId,
+    );
+    setStatusMessage('AI suggestion rejected and deleted.');
+  };
+
   const handleSaveAnnotationForm = async (attributes: Record<string, unknown>) => {
     if (!selectedAnnotation) {
       return;
@@ -416,7 +548,10 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
 
     await updateAnnotationAttributes({
       id: selectedAnnotation.id,
-      attributes,
+      attributes: {
+        ...(selectedAnnotation.attributes ?? {}),
+        ...attributes,
+      },
     });
 
     setStatusMessage('Annotation form saved.');
@@ -431,7 +566,7 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
+    <div className="grid gap-4 lg:grid-cols-[1fr_420px]">
       <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
         <ImageAnnotator
           userSelectAction={UserSelectAction.EDIT}
@@ -525,6 +660,62 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
             </div>
           </div>
 
+          <div className="rounded-xl bg-slate-950 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="inline-flex items-center gap-2 font-semibold text-slate-100">
+                <Filter size={15} />
+                Source filter
+              </h3>
+              <span className="rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-300">
+                {visibleAnnotationRecords.length}/{annotationRecords.length}
+              </span>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {(['all', 'human', 'ai', 'imported'] as AnnotationSourceFilter[]).map((source) => {
+                const isActive = annotationSourceFilter === source;
+
+                return (
+                  <button
+                    key={source}
+                    type="button"
+                    onClick={() => setAnnotationSourceFilter(source)}
+                    className={[
+                      'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs transition',
+                      isActive
+                        ? 'border-sky-500 bg-sky-950 text-sky-100'
+                        : 'border-slate-800 bg-slate-950 text-slate-500 hover:border-slate-600',
+                    ].join(' ')}
+                  >
+                    {annotationSourceFilterLabels[source]}
+                    <span className="rounded-full bg-slate-900 px-2 py-0.5">
+                      {sourceCounts[source]}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {aiAnnotations.length > 0 ? (
+            <div className="rounded-xl border border-sky-900 bg-sky-950/30 p-4 text-sky-100">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="inline-flex items-center gap-2 font-semibold">
+                  <Bot size={16} />
+                  AI review
+                </h3>
+                <span className="rounded-full bg-sky-950 px-3 py-1 text-xs">
+                  {aiAnnotations.length} pending
+                </span>
+              </div>
+
+              <p className="mt-2 text-xs leading-5 text-sky-100/80">
+                AI suggestions are not final. Accept changes source to human. Reject deletes the
+                suggestion.
+              </p>
+            </div>
+          ) : null}
+
           {statusMessage ? (
             <div className="rounded-xl border border-emerald-900 bg-emerald-950/30 px-4 py-3 text-emerald-100">
               {statusMessage}
@@ -535,13 +726,13 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
             <div className="flex items-center justify-between gap-3">
               <h3 className="font-semibold text-slate-100">Annotations</h3>
               <span className="rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-300">
-                {annotationRecords.length}
+                {visibleAnnotationRecords.length}
               </span>
             </div>
 
-            {annotationRecords.length > 0 ? (
+            {visibleAnnotationRecords.length > 0 ? (
               <div className="mt-4 space-y-3">
-                {annotationRecords.map((annotation) => (
+                {visibleAnnotationRecords.map((annotation) => (
                   <AnnotationListItem
                     key={annotation.id}
                     annotation={annotation}
@@ -549,12 +740,14 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
                     isSelected={selectedAnnotationId === annotation.id}
                     onSelect={() => handleSelectAnnotation(annotation.id)}
                     onDelete={() => handleDeleteAnnotationFromPanel(annotation.id)}
+                    onAcceptAi={() => handleAcceptAiAnnotation(annotation)}
+                    onRejectAi={() => handleRejectAiAnnotation(annotation)}
                   />
                 ))}
               </div>
             ) : (
               <div className="mt-4 rounded-xl border border-dashed border-slate-700 p-4 text-center text-slate-500">
-                No annotations yet.
+                No annotations for the current filters.
               </div>
             )}
           </div>
@@ -563,9 +756,14 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
             <div className="mb-4 flex items-center justify-between gap-3">
               <h3 className="font-semibold text-slate-100">Dynamic form</h3>
               {selectedAnnotation ? (
-                <span className="rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-300">
-                  {selectedAnnotation.label}
-                </span>
+                <div className="flex flex-wrap justify-end gap-2">
+                  <span className="rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-300">
+                    {selectedAnnotation.label}
+                  </span>
+                  <span className="rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-300">
+                    {selectedAnnotation.source}
+                  </span>
+                </div>
               ) : null}
             </div>
 
@@ -594,16 +792,24 @@ function AnnotationListItem({
   isSelected,
   onSelect,
   onDelete,
+  onAcceptAi,
+  onRejectAi,
 }: {
   annotation: ImageAnnotationRecord;
   color: Color;
   isSelected: boolean;
   onSelect: () => void;
   onDelete: () => void;
+  onAcceptAi: () => void;
+  onRejectAi: () => void;
 }) {
   const visibleAttributes = Object.entries(annotation.attributes ?? {})
-    .filter(([, value]) => isDisplayableAttributeValue(value))
+    .filter(([key, value]) => !isInternalAiAttributeKey(key) && isDisplayableAttributeValue(value))
     .slice(0, 4);
+
+  const aiConfidence = getAiConfidence(annotation);
+  const aiReviewStatus = getAiReviewStatus(annotation);
+  const isAiSuggestion = annotation.source === 'ai';
 
   return (
     <div
@@ -644,11 +850,58 @@ function AnnotationListItem({
 
       <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
         <span className="rounded-full bg-slate-800 px-3 py-1">{annotation.type}</span>
-        <span className="rounded-full bg-slate-800 px-3 py-1">{annotation.source}</span>
+        <span
+          className={[
+            'rounded-full px-3 py-1',
+            annotation.source === 'ai'
+              ? 'bg-sky-950 text-sky-100'
+              : 'bg-slate-800 text-slate-500',
+          ].join(' ')}
+        >
+          {annotation.source}
+        </span>
+        {isAiSuggestion ? (
+          <span className="rounded-full bg-sky-950 px-3 py-1 text-sky-100">
+            {aiReviewStatus}
+          </span>
+        ) : null}
+        {aiConfidence !== null ? (
+          <span className="rounded-full bg-slate-800 px-3 py-1">
+            confidence: {Math.round(aiConfidence * 100)}%
+          </span>
+        ) : null}
         {isSelected ? (
           <span className="rounded-full bg-sky-950 px-3 py-1 text-sky-100">selected</span>
         ) : null}
       </div>
+
+      {isAiSuggestion ? (
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onAcceptAi();
+            }}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-950 px-3 py-2 text-xs font-medium text-emerald-100 transition hover:bg-emerald-900"
+          >
+            <CheckCircle2 size={14} />
+            Accept
+          </button>
+
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onRejectAi();
+            }}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-950 px-3 py-2 text-xs font-medium text-red-100 transition hover:bg-red-900"
+          >
+            <XCircle size={14} />
+            Reject
+          </button>
+        </div>
+      ) : null}
 
       {visibleAttributes.length > 0 ? (
         <div className="mt-3 space-y-1 rounded-lg bg-slate-950 p-3 text-xs">

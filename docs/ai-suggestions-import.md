@@ -25,35 +25,46 @@ Export Center -> AI suggestions import
 Click:
 
 ```text
-Generate demo suggestions
-```
-
-AuditM-Field will:
-
-```text
-- take the latest local photo from IndexedDB;
-- find its inspection;
-- generate ai-suggestions_<inspectionId>_<photoId>.json;
-- download the file.
-```
-
-Then upload the downloaded file using:
-
-```text
-Import AI suggestions
+Generate & import demo
 ```
 
 Expected result:
 
 ```text
-Imported 1/1 AI suggestions.
-Open first affected photo.
+Demo AI suggestion generated and imported: 1/1
+Open first affected photo
 ```
 
 Open the affected photo in Annotator and check that the imported annotation has:
 
 ```text
 source: ai
+```
+
+## AI review
+
+In Annotator, AI suggestions can be reviewed by a human:
+
+```text
+Accept -> source changes from ai to human
+Reject -> AI annotation is deleted
+```
+
+Available filters:
+
+```text
+All
+Human
+AI
+Imported
+```
+
+AI suggestions also display:
+
+```text
+confidence
+review status
+source badge
 ```
 
 ## Minimal JSON format
@@ -115,19 +126,15 @@ Then it saves suggestions as annotations:
 source: "ai"
 ```
 
-The user can open Annotator and review/edit/delete them.
-
-## Demo file
+Internal AI metadata is stored in annotation attributes:
 
 ```text
-public/demo-transport/ai-suggestions.example.json
+_aiProvider
+_aiConfidence
+_aiReviewStatus
+_aiImportedAt
+_aiAcceptedAt
+_aiOriginalSource
 ```
 
-For a real test, replace:
-
-```text
-inspectionId
-photoId
-```
-
-with actual ids from your local AuditM-Field data, or use the built-in generator from Export Center.
+These fields are hidden from normal attribute preview in the annotation list.

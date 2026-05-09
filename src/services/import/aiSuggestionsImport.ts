@@ -95,9 +95,24 @@ function buildSuggestionComment(input: {
   return parts.length > 0 ? parts.join(' | ') : undefined;
 }
 
+function buildSuggestionAttributes(input: {
+  suggestion: AiAnnotationSuggestion;
+  provider?: string;
+  importedAt: string;
+}): Record<string, unknown> {
+  return {
+    ...input.suggestion.attributes,
+    _aiProvider: input.provider ?? 'unknown',
+    _aiConfidence: input.suggestion.confidence ?? null,
+    _aiReviewStatus: 'pending',
+    _aiImportedAt: input.importedAt,
+  };
+}
+
 function toAnnotationRecord(input: {
   inspectionId: string;
   provider?: string;
+  importedAt: string;
   suggestion: AiAnnotationSuggestion;
 }): ImageAnnotationRecord {
   const suggestionId = input.suggestion.id ?? nanoid();
@@ -109,7 +124,11 @@ function toAnnotationRecord(input: {
     type: input.suggestion.type,
     label: input.suggestion.label,
     rawAnnotation,
-    attributes: input.suggestion.attributes,
+    attributes: buildSuggestionAttributes({
+      suggestion: input.suggestion,
+      provider: input.provider,
+      importedAt: input.importedAt,
+    }),
     source: 'ai',
     comment: buildSuggestionComment({
       suggestion: input.suggestion,
@@ -187,10 +206,13 @@ export async function importAiSuggestionsData(
     existingPhotoIds,
   });
 
+  const importedAt = new Date().toISOString();
+
   const annotationRecords = parsedPackage.suggestions.map((suggestion) =>
     toAnnotationRecord({
       inspectionId: parsedPackage.inspectionId,
       provider: parsedPackage.provider,
+      importedAt,
       suggestion,
     }),
   );
@@ -208,7 +230,7 @@ export async function importAiSuggestionsData(
   return {
     inspectionId: parsedPackage.inspectionId,
     provider: parsedPackage.provider,
-    importedAt: new Date().toISOString(),
+    importedAt,
     suggestionsTotal: parsedPackage.suggestions.length,
     annotationsImported: annotationRecords.length,
     affectedPhotoIds,

@@ -3,7 +3,7 @@ import {
   ensureAnnotoriousAnnotationId,
   getAnnotoriousAnnotationId,
 } from '../../entities/annotation/model';
-import type { ImageAnnotationRecord } from '../../entities/annotation/types';
+import type { AnnotationSource, ImageAnnotationRecord } from '../../entities/annotation/types';
 
 import { db } from './db';
 
@@ -101,6 +101,34 @@ export async function updateAnnotationAttributes(input: {
   const updatedAnnotation: ImageAnnotationRecord = {
     ...existingAnnotation,
     attributes: input.attributes,
+    updatedAt: new Date().toISOString(),
+  };
+
+  await db.annotations.put(updatedAnnotation);
+
+  return updatedAnnotation;
+}
+
+export async function updateAnnotationReviewState(input: {
+  id: string;
+  source?: AnnotationSource;
+  attributesPatch?: Record<string, unknown>;
+  comment?: string;
+}): Promise<ImageAnnotationRecord | undefined> {
+  const existingAnnotation = await db.annotations.get(input.id);
+
+  if (!existingAnnotation) {
+    return undefined;
+  }
+
+  const updatedAnnotation: ImageAnnotationRecord = {
+    ...existingAnnotation,
+    source: input.source ?? existingAnnotation.source,
+    attributes: {
+      ...(existingAnnotation.attributes ?? {}),
+      ...(input.attributesPatch ?? {}),
+    },
+    comment: input.comment ?? existingAnnotation.comment,
     updatedAt: new Date().toISOString(),
   };
 
