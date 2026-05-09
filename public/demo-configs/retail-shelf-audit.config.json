@@ -1,0 +1,123 @@
+{
+  "id": "retail-shelf-audit",
+  "name": "Retail Shelf Audit",
+  "version": "1.0.0",
+  "description": "Demo audit config for retail shelf, product areas, price tags, and violations.",
+  "photoTypes": [
+    {
+      "id": "overview",
+      "label": "Overview"
+    },
+    {
+      "id": "price_tag",
+      "label": "Price tag"
+    },
+    {
+      "id": "violation",
+      "label": "Violation"
+    }
+  ],
+  "annotationTypes": [
+    {
+      "id": "product_area",
+      "label": "Product area",
+      "shape": "rectangle"
+    },
+    {
+      "id": "competitor_area",
+      "label": "Competitor area",
+      "shape": "rectangle"
+    },
+    {
+      "id": "price_tag",
+      "label": "Price tag",
+      "shape": "rectangle"
+    },
+    {
+      "id": "violation",
+      "label": "Violation",
+      "shape": "rectangle"
+    }
+  ],
+  "dictionaries": {
+    "brands": [
+      "Our brand",
+      "Competitor 1",
+      "Competitor 2"
+    ],
+    "condition": [
+      "OK",
+      "Attention",
+      "Critical",
+      "Not visible"
+    ],
+    "violationTypes": [
+      "Missing price tag",
+      "Damaged packaging",
+      "Wrong placement",
+      "Low visibility"
+    ]
+  },
+  "inspectionForm": [
+    {
+      "id": "store_name",
+      "type": "text",
+      "label": "Store name",
+      "required": true
+    },
+    {
+      "id": "address",
+      "type": "text",
+      "label": "Address",
+      "required": false
+    },
+    {
+      "id": "visit_comment",
+      "type": "textarea",
+      "label": "Visit comment",
+      "required": false
+    }
+  ],
+  "photoForm": [
+    {
+      "id": "photo_comment",
+      "type": "textarea",
+      "label": "Photo comment",
+      "required": false
+    }
+  ],
+  "annotationForm": [
+    {
+      "id": "brand",
+      "type": "select",
+      "label": "Brand",
+      "required": true,
+      "dictionary": "brands"
+    },
+    {
+      "id": "condition",
+      "type": "select",
+      "label": "Condition",
+      "required": true,
+      "dictionary": "condition"
+    },
+    {
+      "id": "violation_type",
+      "type": "select",
+      "label": "Violation type",
+      "required": false,
+      "dictionary": "violationTypes"
+    },
+    {
+      "id": "comment",
+      "type": "textarea",
+      "label": "Comment",
+      "required": false
+    }
+  ],
+  "exportSettings": {
+    "packageNamePrefix": "auditm_field_export",
+    "includeConfig": true,
+    "includeSchemas": true
+  }
+}
