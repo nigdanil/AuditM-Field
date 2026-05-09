@@ -1,0 +1,7 @@
+{
+  "accepted": true,
+  "jobId": "n8n-execution-001",
+  "message": "AuditM-Field package accepted for processing",
+  "externalUrl": "https://n8n.example.com/execution/001",
+  "status": "PROCESSING"
+}

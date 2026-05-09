@@ -5,6 +5,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Download,
+  ExternalLink,
   FileArchive,
   RefreshCw,
   Settings,
@@ -42,6 +43,10 @@ import {
   type StorageAdapterSettings,
 } from '../../services/storage/settings/storageAdapterSettings';
 import { getStorageAdapter, listStorageAdapters } from '../../services/storage/storageAdapterRegistry';
+import {
+  buildTransportPayloadMetadata,
+  type TransportResult,
+} from '../../services/storage/transport/transportContract';
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleString();
@@ -65,6 +70,21 @@ function canExportInspection(input: {
   preview?: BuildInspectionExportPreviewResult;
 }): boolean {
   return Boolean(input.preview?.canExport);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function getTransportResultFromJob(job: ExportJob): TransportResult | null {
+  const transport = isRecord(job.metadata?.transport) ? job.metadata.transport : null;
+  const result = transport && isRecord(transport.result) ? transport.result : null;
+
+  if (!result) {
+    return null;
+  }
+
+  return result as TransportResult;
 }
 
 function getStatusClass(status: ExportJob['status']): string {
@@ -224,6 +244,13 @@ export function ExportCenterPage() {
       configLoadedAt: activeConfigState?.loadedAt,
     });
 
+    const transportMetadata = buildTransportPayloadMetadata({
+      adapterId,
+      fileName: result.fileName,
+      fileSize: result.blob.size,
+      manifest: result.manifest,
+    });
+
     const job = await createExportJob({
       inspectionId: inspection.id,
       inspectionTitle: inspection.title,
@@ -233,6 +260,10 @@ export function ExportCenterPage() {
       targetUrl: getStorageAdapterTargetUrl(runSettings),
       metadata: {
         manifest: result.manifest,
+        transport: {
+          contractVersion: transportMetadata.contractVersion,
+          request: transportMetadata,
+        },
       },
     });
 
@@ -246,12 +277,7 @@ export function ExportCenterPage() {
       const uploadResult = await adapter.uploadPackage({
         file: result.blob,
         fileName: result.fileName,
-        metadata: {
-          manifest: result.manifest,
-          inspectionId: inspection.id,
-          inspectionTitle: inspection.title,
-          adapterId,
-        },
+        metadata: transportMetadata,
         settings: runSettings,
       });
 
@@ -259,6 +285,17 @@ export function ExportCenterPage() {
         status: 'SUCCESS',
         responseStatus: uploadResult.status,
         responseText: uploadResult.responseText,
+        metadata: {
+          manifest: result.manifest,
+          transport: {
+            contractVersion: transportMetadata.contractVersion,
+            request: transportMetadata,
+            result: uploadResult.transportResult ?? {
+              accepted: true,
+              message: uploadResult.responseText ?? 'Transport completed.',
+            },
+          },
+        },
         completedAt: new Date().toISOString(),
       });
 
@@ -267,14 +304,29 @@ export function ExportCenterPage() {
       }
 
       const actionLabel = adapterId === 'local-download' ? 'Local download started' : 'Upload completed';
+      const externalJobId = uploadResult.transportResult?.jobId
+        ? ` External job: ${uploadResult.transportResult.jobId}.`
+        : '';
 
       setSuccessMessage(
-        `${actionLabel}: "${inspection.title}" — ${result.manifest.counts.photos} photos, ${result.manifest.counts.annotations} annotations.`,
+        `${actionLabel}: "${inspection.title}" — ${result.manifest.counts.photos} photos, ${result.manifest.counts.annotations} annotations.${externalJobId}`,
       );
     } catch (error) {
       await updateExportJob(job.id, {
         status: 'FAILED',
         errorMessage: error instanceof Error ? error.message : 'Storage adapter failed.',
+        metadata: {
+          manifest: result.manifest,
+          transport: {
+            contractVersion: transportMetadata.contractVersion,
+            request: transportMetadata,
+            result: {
+              accepted: false,
+              message: error instanceof Error ? error.message : 'Storage adapter failed.',
+              status: 'FAILED',
+            },
+          },
+        },
         completedAt: new Date().toISOString(),
       });
 
@@ -364,7 +416,7 @@ export function ExportCenterPage() {
         <h2 className="text-lg font-semibold">ZIP package pipeline</h2>
         <div className="mt-4 rounded-xl bg-slate-950 p-4 font-mono text-sm text-slate-300">
           manifest.json → config.json → inspections/inspection.json → photos/photos.metadata.json
-          → annotations/annotations.json → photos blobs → ZIP → storage adapter
+          → annotations/annotations.json → photos blobs → ZIP → storage adapter → n8n/backend
         </div>
       </div>
 
@@ -485,10 +537,14 @@ export function ExportCenterPage() {
 
             {storageSettings.adapterId !== 'local-download' ? (
               <div className="mt-4 rounded-lg border border-dashed border-slate-800 bg-slate-900 p-3 text-xs leading-5 text-slate-400">
-                Mock endpoint tip: for a quick manual test you can use a local mock server,
-                an n8n Webhook node, or any endpoint that accepts multipart/form-data fields
-                named <span className="font-mono text-slate-300">file</span> and{' '}
-                <span className="font-mono text-slate-300">metadata</span>.
+                n8n/backend contract: multipart/form-data with fields{' '}
+                <span className="font-mono text-slate-300">file</span>,{' '}
+                <span className="font-mono text-slate-300">metadata</span>,{' '}
+                <span className="font-mono text-slate-300">manifest</span>,{' '}
+                <span className="font-mono text-slate-300">inspectionId</span>,{' '}
+                <span className="font-mono text-slate-300">configId</span>, and{' '}
+                <span className="font-mono text-slate-300">packageFormatVersion</span>. Expected
+                JSON response: <span className="font-mono text-slate-300">{'{"accepted":true,"jobId":"...","message":"...","externalUrl":"..."}'}</span>.
               </div>
             ) : null}
           </div>
@@ -668,80 +724,112 @@ export function ExportCenterPage() {
 
         {exportJobs.length > 0 ? (
           <div className="mt-5 grid gap-3">
-            {exportJobs.map((job) => (
-              <div key={job.id} className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <div className="font-semibold">{job.inspectionTitle}</div>
-                    <div className="mt-1 font-mono text-xs text-slate-500">{job.fileName}</div>
+            {exportJobs.map((job) => {
+              const transportResult = getTransportResultFromJob(job);
 
-                    <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                      <span className={`rounded-full border px-3 py-1 ${getStatusClass(job.status)}`}>
-                        {exportJobStatusLabels[job.status]}
-                      </span>
-                      <span className="rounded-full bg-slate-900 px-3 py-1 text-slate-500">
-                        {exportJobAdapterLabels[job.adapterId]}
-                      </span>
-                      <span className="rounded-full bg-slate-900 px-3 py-1 text-slate-500">
-                        {formatFileSize(job.packageSize)}
-                      </span>
-                      <span className="rounded-full bg-slate-900 px-3 py-1 text-slate-500">
-                        attempts: {job.attempts}
-                      </span>
+              return (
+                <div key={job.id} className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <div className="font-semibold">{job.inspectionTitle}</div>
+                      <div className="mt-1 font-mono text-xs text-slate-500">{job.fileName}</div>
+
+                      <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                        <span className={`rounded-full border px-3 py-1 ${getStatusClass(job.status)}`}>
+                          {exportJobStatusLabels[job.status]}
+                        </span>
+                        <span className="rounded-full bg-slate-900 px-3 py-1 text-slate-500">
+                          {exportJobAdapterLabels[job.adapterId]}
+                        </span>
+                        <span className="rounded-full bg-slate-900 px-3 py-1 text-slate-500">
+                          {formatFileSize(job.packageSize)}
+                        </span>
+                        <span className="rounded-full bg-slate-900 px-3 py-1 text-slate-500">
+                          attempts: {job.attempts}
+                        </span>
+                        {transportResult?.jobId ? (
+                          <span className="rounded-full bg-slate-900 px-3 py-1 text-slate-500">
+                            external job: {transportResult.jobId}
+                          </span>
+                        ) : null}
+                        {transportResult?.status ? (
+                          <span className="rounded-full bg-slate-900 px-3 py-1 text-slate-500">
+                            transport: {transportResult.status}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      {job.targetUrl ? (
+                        <div className="mt-3 break-all rounded-xl bg-slate-900 px-4 py-3 text-xs text-slate-400">
+                          {job.targetUrl}
+                        </div>
+                      ) : null}
+
+                      {transportResult?.message ? (
+                        <div className="mt-3 rounded-xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300">
+                          {transportResult.message}
+                        </div>
+                      ) : null}
+
+                      {transportResult?.externalUrl ? (
+                        <a
+                          href={transportResult.externalUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-3 inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-slate-100 transition hover:bg-slate-800"
+                        >
+                          Open external job
+                          <ExternalLink size={14} />
+                        </a>
+                      ) : null}
+
+                      {job.errorMessage ? (
+                        <div className="mt-3 rounded-xl border border-red-900 bg-red-950/40 px-4 py-3 text-sm text-red-100">
+                          {job.errorMessage}
+                        </div>
+                      ) : null}
+
+                      {job.responseText ? (
+                        <details className="mt-3 rounded-xl border border-slate-800 bg-slate-900 p-4">
+                          <summary className="cursor-pointer text-sm font-medium text-slate-300">
+                            Response
+                          </summary>
+                          <pre className="mt-4 max-h-56 overflow-auto rounded-xl bg-slate-950 p-4 text-xs leading-5 text-slate-300">
+                            {job.responseText}
+                          </pre>
+                        </details>
+                      ) : null}
+
+                      <div className="mt-3 text-xs text-slate-600">
+                        Updated: {formatDate(job.updatedAt)}
+                      </div>
                     </div>
 
-                    {job.targetUrl ? (
-                      <div className="mt-3 break-all rounded-xl bg-slate-900 px-4 py-3 text-xs text-slate-400">
-                        {job.targetUrl}
-                      </div>
-                    ) : null}
+                    <div className="flex gap-2">
+                      {job.status === 'FAILED' ? (
+                        <button
+                          type="button"
+                          onClick={() => void handleRetryExportJob(job)}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-100 px-4 py-3 text-sm font-medium text-slate-950 transition hover:bg-white"
+                        >
+                          <RefreshCw size={16} />
+                          Retry
+                        </button>
+                      ) : null}
 
-                    {job.errorMessage ? (
-                      <div className="mt-3 rounded-xl border border-red-900 bg-red-950/40 px-4 py-3 text-sm text-red-100">
-                        {job.errorMessage}
-                      </div>
-                    ) : null}
-
-                    {job.responseText ? (
-                      <details className="mt-3 rounded-xl border border-slate-800 bg-slate-900 p-4">
-                        <summary className="cursor-pointer text-sm font-medium text-slate-300">
-                          Response
-                        </summary>
-                        <pre className="mt-4 max-h-56 overflow-auto rounded-xl bg-slate-950 p-4 text-xs leading-5 text-slate-300">
-                          {job.responseText}
-                        </pre>
-                      </details>
-                    ) : null}
-
-                    <div className="mt-3 text-xs text-slate-600">
-                      Updated: {formatDate(job.updatedAt)}
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2">
-                    {job.status === 'FAILED' ? (
                       <button
                         type="button"
-                        onClick={() => void handleRetryExportJob(job)}
-                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-100 px-4 py-3 text-sm font-medium text-slate-950 transition hover:bg-white"
+                        onClick={() => void handleDeleteExportJob(job)}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-900 bg-red-950 px-4 py-3 text-sm text-red-100 transition hover:bg-red-900"
                       >
-                        <RefreshCw size={16} />
-                        Retry
+                        <Trash2 size={16} />
+                        Delete
                       </button>
-                    ) : null}
-
-                    <button
-                      type="button"
-                      onClick={() => void handleDeleteExportJob(job)}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-900 bg-red-950 px-4 py-3 text-sm text-red-100 transition hover:bg-red-900"
-                    >
-                      <Trash2 size={16} />
-                      Delete
-                    </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="mt-5 rounded-2xl border border-dashed border-slate-700 bg-slate-950 p-8 text-center">

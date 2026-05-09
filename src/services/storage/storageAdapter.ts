@@ -1,11 +1,15 @@
 import type { ExportJobAdapterId } from '../../entities/export-job/types';
 
 import type { StorageAdapterSettings } from './settings/storageAdapterSettings';
+import type {
+  TransportPayloadMetadata,
+  TransportResult,
+} from './transport/transportContract';
 
 export type UploadPackageInput = {
   file: Blob;
   fileName: string;
-  metadata: Record<string, unknown>;
+  metadata: TransportPayloadMetadata;
   settings: StorageAdapterSettings;
 };
 
@@ -14,6 +18,7 @@ export type UploadPackageResult = {
   status?: number;
   responseText?: string;
   url?: string;
+  transportResult?: TransportResult;
 };
 
 export interface StorageAdapter {

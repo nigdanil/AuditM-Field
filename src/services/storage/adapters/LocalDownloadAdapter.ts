@@ -19,6 +19,11 @@ export const LocalDownloadAdapter: StorageAdapter = {
       ok: true,
       status: 200,
       responseText: 'Local download adapter is ready.',
+      transportResult: {
+        accepted: true,
+        message: 'Local download adapter is ready.',
+        status: 'READY',
+      },
     };
   },
 
@@ -32,6 +37,11 @@ export const LocalDownloadAdapter: StorageAdapter = {
       ok: true,
       status: 200,
       responseText: 'Local download started.',
+      transportResult: {
+        accepted: true,
+        message: 'Local download started.',
+        status: 'DELIVERED',
+      },
     };
   },
 };

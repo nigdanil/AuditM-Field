@@ -4,6 +4,10 @@ import type {
   UploadPackageResult,
 } from '../storageAdapter';
 import type { StorageAdapterSettings } from '../settings/storageAdapterSettings';
+import {
+  getTransportFormFields,
+  parseTransportResult,
+} from '../transport/transportContract';
 
 function getUploadUrl(settings: StorageAdapterSettings): string {
   const url = settings.httpUploadUrl.trim();
@@ -30,11 +34,18 @@ async function testEndpoint(url: string): Promise<UploadPackageResult> {
     method: 'HEAD',
   });
 
+  const responseText = `Endpoint is reachable. HEAD responded with status ${response.status}.`;
+
   return {
     ok: true,
     status: response.status,
-    responseText: `Endpoint is reachable. HEAD responded with status ${response.status}.`,
+    responseText,
     url,
+    transportResult: {
+      accepted: true,
+      message: responseText,
+      status: 'READY',
+    },
   };
 }
 
@@ -49,6 +60,17 @@ async function postFormData(input: UploadPackageInput, url: string): Promise<Upl
     }),
     'metadata.json',
   );
+  formData.append(
+    'manifest',
+    new Blob([JSON.stringify(input.metadata.manifest, null, 2)], {
+      type: 'application/json',
+    }),
+    'manifest.json',
+  );
+
+  Object.entries(getTransportFormFields(input.metadata)).forEach(([key, value]) => {
+    formData.append(key, value);
+  });
 
   const response = await fetch(url, {
     method: 'POST',
@@ -66,6 +88,10 @@ async function postFormData(input: UploadPackageInput, url: string): Promise<Upl
     status: response.status,
     responseText: responseText || 'Upload completed.',
     url,
+    transportResult: parseTransportResult({
+      responseText,
+      fallbackMessage: 'Upload completed.',
+    }),
   };
 }
 

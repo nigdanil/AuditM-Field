@@ -4,6 +4,10 @@ import type {
   UploadPackageResult,
 } from '../storageAdapter';
 import type { StorageAdapterSettings } from '../settings/storageAdapterSettings';
+import {
+  getTransportFormFields,
+  parseTransportResult,
+} from '../transport/transportContract';
 
 function getWebhookUrl(settings: StorageAdapterSettings): string {
   const url = settings.webhookUrl.trim();
@@ -30,11 +34,18 @@ async function testEndpoint(url: string): Promise<UploadPackageResult> {
     method: 'HEAD',
   });
 
+  const responseText = `Webhook is reachable. HEAD responded with status ${response.status}.`;
+
   return {
     ok: true,
     status: response.status,
-    responseText: `Webhook is reachable. HEAD responded with status ${response.status}.`,
+    responseText,
     url,
+    transportResult: {
+      accepted: true,
+      message: responseText,
+      status: 'READY',
+    },
   };
 }
 
@@ -65,6 +76,17 @@ export const WebhookAdapter: StorageAdapter = {
       }),
       'metadata.json',
     );
+    formData.append(
+      'manifest',
+      new Blob([JSON.stringify(input.metadata.manifest, null, 2)], {
+        type: 'application/json',
+      }),
+      'manifest.json',
+    );
+
+    Object.entries(getTransportFormFields(input.metadata)).forEach(([key, value]) => {
+      formData.append(key, value);
+    });
 
     const response = await fetch(url, {
       method: 'POST',
@@ -82,6 +104,10 @@ export const WebhookAdapter: StorageAdapter = {
       status: response.status,
       responseText: responseText || 'Webhook upload completed.',
       url,
+      transportResult: parseTransportResult({
+        responseText,
+        fallbackMessage: 'Webhook upload completed.',
+      }),
     };
   },
 };
