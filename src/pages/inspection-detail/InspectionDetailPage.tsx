@@ -1,15 +1,67 @@
 import type { ChangeEvent } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ArrowLeft, ClipboardCheck } from 'lucide-react';
+import { ArrowLeft, ClipboardCheck, ImagePlus, Trash2 } from 'lucide-react';
 
+import { loadActiveConfig } from '../../core/config/configStorage';
 import { inspectionStatusLabels } from '../../entities/inspection/model';
 import { inspectionStatusValues } from '../../entities/inspection/schemas';
 import type { InspectionStatus } from '../../entities/inspection/types';
+import type { PhotoRecord } from '../../entities/photo/types';
 import {
   getInspectionById,
   updateInspectionStatus,
 } from '../../services/db/inspectionRepository';
+import {
+  createPhotosFromFiles,
+  deletePhoto,
+  listPhotosByInspection,
+} from '../../services/db/photoRepository';
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  const kilobytes = bytes / 1024;
+
+  if (kilobytes < 1024) {
+    return `${kilobytes.toFixed(1)} KB`;
+  }
+
+  return `${(kilobytes / 1024).toFixed(1)} MB`;
+}
+
+function PhotoThumbnail({ photo }: { photo: PhotoRecord }) {
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const nextObjectUrl = URL.createObjectURL(photo.blob);
+    setObjectUrl(nextObjectUrl);
+
+    return () => {
+      URL.revokeObjectURL(nextObjectUrl);
+    };
+  }, [photo.blob]);
+
+  return (
+    <div className="overflow-hidden rounded-xl bg-slate-950">
+      {objectUrl ? (
+        <img
+          src={objectUrl}
+          alt={photo.fileName}
+          className="h-44 w-full object-cover"
+          loading="lazy"
+        />
+      ) : (
+        <div className="flex h-44 items-center justify-center text-sm text-slate-500">
+          Loading preview...
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function InspectionDetailPage() {
   const { inspectionId } = useParams();
@@ -26,12 +78,77 @@ export function InspectionDetailPage() {
     null,
   );
 
+  const photos = useLiveQuery(
+    () => {
+      if (!inspectionId) {
+        return Promise.resolve([]);
+      }
+
+      return listPhotosByInspection(inspectionId);
+    },
+    [inspectionId],
+    [],
+  );
+
+  const [activeConfigState] = useState(() => loadActiveConfig());
+  const [selectedPhotoType, setSelectedPhotoType] = useState('');
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const activeConfig = activeConfigState?.config;
+
+  const photoTypes =
+    activeConfig && activeConfig.id === inspection?.configId ? activeConfig.photoTypes : [];
+
+  const effectivePhotoType = selectedPhotoType || photoTypes[0]?.id || 'photo';
+
   const handleStatusChange = async (event: ChangeEvent<HTMLSelectElement>) => {
     if (!inspection) {
       return;
     }
 
     await updateInspectionStatus(inspection.id, event.target.value as InspectionStatus);
+  };
+
+  const handlePhotoUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(event.target.files ?? []);
+    const imageFiles = selectedFiles.filter((file) => file.type.startsWith('image/'));
+
+    event.target.value = '';
+
+    if (!inspection) {
+      return;
+    }
+
+    if (imageFiles.length === 0) {
+      setUploadError('Select at least one image file.');
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      setUploadError(null);
+
+      await createPhotosFromFiles({
+        inspectionId: inspection.id,
+        files: imageFiles,
+        type: effectivePhotoType,
+      });
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : 'Failed to import photos.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleDeletePhoto = async (photoId: string) => {
+    const confirmed = window.confirm('Delete this photo?');
+
+    if (!confirmed) {
+      return;
+    }
+
+    await deletePhoto(photoId);
   };
 
   if (inspection === null) {
@@ -152,12 +269,109 @@ export function InspectionDetailPage() {
           </div>
         </div>
 
-        <div className="mt-6 rounded-2xl border border-dashed border-slate-700 bg-slate-950 p-8 text-center">
-          <h2 className="text-lg font-semibold">Photo gallery will be here</h2>
-          <p className="mt-2 text-sm text-slate-400">
-            The next MVP step will add photo import from gallery and photo records linked to this
-            inspection.
-          </p>
+        <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-950 p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold">Photo gallery</h2>
+              <p className="mt-2 text-sm text-slate-400">
+                Import one or more photos from gallery and store them locally in IndexedDB.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <label className="space-y-2">
+                <span className="text-sm font-medium text-slate-300">Photo type</span>
+                <select
+                  value={effectivePhotoType}
+                  onChange={(event) => setSelectedPhotoType(event.target.value)}
+                  className="w-full min-w-48 rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 outline-none transition focus:border-slate-400"
+                >
+                  {photoTypes.length > 0 ? (
+                    photoTypes.map((photoType) => (
+                      <option key={photoType.id} value={photoType.id}>
+                        {photoType.label}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="photo">Photo</option>
+                  )}
+                </select>
+              </label>
+
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-100 px-4 py-3 text-sm font-medium text-slate-950 transition hover:bg-white">
+                <ImagePlus size={16} />
+                {isUploading ? 'Importing...' : 'Import photos'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={handlePhotoUpload}
+                  disabled={isUploading}
+                />
+              </label>
+            </div>
+          </div>
+
+          {uploadError ? (
+            <div className="mt-5 rounded-xl border border-red-900 bg-red-950/40 px-4 py-3 text-sm text-red-100">
+              {uploadError}
+            </div>
+          ) : null}
+
+          {photos.length > 0 ? (
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {photos.map((photo) => (
+                <div key={photo.id} className="rounded-2xl border border-slate-800 bg-slate-900 p-3">
+                  <PhotoThumbnail photo={photo} />
+
+                  <div className="mt-4 space-y-2 px-1">
+                    <div className="font-medium">{photo.fileName}</div>
+
+                    <div className="flex flex-wrap gap-2 text-xs text-slate-500">
+                      <span className="rounded-full bg-slate-800 px-3 py-1">{photo.type}</span>
+                      <span className="rounded-full bg-slate-800 px-3 py-1">
+                        {formatFileSize(photo.size)}
+                      </span>
+                      {photo.width && photo.height ? (
+                        <span className="rounded-full bg-slate-800 px-3 py-1">
+                          {photo.width}×{photo.height}
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <div className="pt-2 text-xs text-slate-600">
+                      Imported: {new Date(photo.createdAt).toLocaleString()}
+                    </div>
+
+                    <div className="flex gap-2 pt-2">
+                      <Link
+                        to={`/photos/${photo.id}/annotate`}
+                        className="inline-flex flex-1 items-center justify-center rounded-xl bg-slate-100 px-3 py-2 text-sm font-medium text-slate-950 transition hover:bg-white"
+                      >
+                        Annotate
+                      </Link>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeletePhoto(photo.id)}
+                        className="inline-flex items-center justify-center rounded-xl bg-red-950 px-3 py-2 text-sm text-red-100 transition hover:bg-red-900"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-6 rounded-2xl border border-dashed border-slate-700 bg-slate-950 p-8 text-center">
+              <h3 className="text-lg font-semibold">No photos yet</h3>
+              <p className="mt-2 text-sm text-slate-400">
+                Import photos from gallery to start field photo annotation.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </section>

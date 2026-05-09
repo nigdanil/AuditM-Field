@@ -1,0 +1,54 @@
+import { createPhotoModel } from '../../entities/photo/model';
+import type { CreatePhotoInput, PhotoRecord } from '../../entities/photo/types';
+
+import { db } from './db';
+
+export async function createPhotoFromFile(input: CreatePhotoInput): Promise<PhotoRecord> {
+  const photo = await createPhotoModel(input);
+
+  await db.photos.add(photo);
+
+  return photo;
+}
+
+export async function createPhotosFromFiles(input: {
+  inspectionId: string;
+  files: File[];
+  type: string;
+  comment?: string;
+}): Promise<PhotoRecord[]> {
+  const photos = await Promise.all(
+    input.files.map((file) =>
+      createPhotoModel({
+        inspectionId: input.inspectionId,
+        type: input.type,
+        file,
+        comment: input.comment,
+      }),
+    ),
+  );
+
+  await db.photos.bulkAdd(photos);
+
+  return photos;
+}
+
+export async function getPhotoById(id: string): Promise<PhotoRecord | undefined> {
+  return db.photos.get(id);
+}
+
+export async function listPhotosByInspection(inspectionId: string): Promise<PhotoRecord[]> {
+  return db.photos.where('inspectionId').equals(inspectionId).reverse().sortBy('createdAt');
+}
+
+export async function countPhotosByInspection(inspectionId: string): Promise<number> {
+  return db.photos.where('inspectionId').equals(inspectionId).count();
+}
+
+export async function deletePhoto(id: string): Promise<void> {
+  await db.photos.delete(id);
+}
+
+export async function deletePhotosByInspection(inspectionId: string): Promise<void> {
+  await db.photos.where('inspectionId').equals(inspectionId).delete();
+}
