@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ChangeEvent } from 'react';
 import { Link } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
@@ -7,6 +7,7 @@ import {
   Download,
   FileArchive,
   Settings,
+  Upload,
 } from 'lucide-react';
 
 import { loadActiveConfig } from '../../core/config/configStorage';
@@ -22,6 +23,7 @@ import {
   downloadBlob,
   type BuildInspectionExportPreviewResult,
 } from '../../services/export/exportPackage';
+import { importInspectionPackage } from '../../services/import/importPackage';
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleString();
@@ -37,6 +39,7 @@ export function ExportCenterPage() {
   const inspections = useLiveQuery(() => listInspections(), [], []);
   const [activeConfigState] = useState(() => loadActiveConfig());
   const [exportingInspectionId, setExportingInspectionId] = useState<string | null>(null);
+  const [isImportingPackage, setIsImportingPackage] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -61,6 +64,31 @@ export function ExportCenterPage() {
     }, [inspections, activeConfig?.id, activeConfigState?.source, activeConfigState?.loadedAt]) ??
     {};
 
+  const handleImportPackage = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+
+    event.target.value = '';
+
+    if (!file) {
+      return;
+    }
+
+    try {
+      setIsImportingPackage(true);
+      setErrorMessage(null);
+      setSuccessMessage(null);
+
+      const result = await importInspectionPackage(file);
+
+      setSuccessMessage(
+        `Imported "${result.inspection.title}" — ${result.photosImported} photos, ${result.annotationsImported} annotations.`,
+      );
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to import package.');
+    } finally {
+      setIsImportingPackage(false);
+    }
+  };
 
   const handleExportInspection = async (inspection: Inspection) => {
     try {
@@ -100,7 +128,7 @@ export function ExportCenterPage() {
         <div>
           <h1 className="text-3xl font-semibold">Export Center</h1>
           <p className="mt-2 text-slate-400">
-            Export inspections as ZIP packages with photos, annotations, active config, and manifest.
+            Export and import ZIP packages with photos, annotations, active config, and manifest.
           </p>
         </div>
 
@@ -121,10 +149,34 @@ export function ExportCenterPage() {
       </div>
 
       <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-        <h2 className="text-lg font-semibold">ZIP export pipeline</h2>
+        <h2 className="text-lg font-semibold">ZIP package pipeline</h2>
         <div className="mt-4 rounded-xl bg-slate-950 p-4 font-mono text-sm text-slate-300">
           manifest.json → config.json → inspections/inspection.json → photos/photos.metadata.json
           → annotations/annotations.json → photos blobs → ZIP
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold">Import package</h2>
+            <p className="mt-1 text-sm text-slate-400">
+              Restore an exported ZIP package back into local IndexedDB. Re-importing the same
+              package updates existing records by id.
+            </p>
+          </div>
+
+          <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-slate-100 px-4 py-3 text-sm font-medium text-slate-950 transition hover:bg-white">
+            <Upload size={16} />
+            {isImportingPackage ? 'Importing...' : 'Import ZIP'}
+            <input
+              type="file"
+              accept=".zip,application/zip,application/x-zip-compressed"
+              className="hidden"
+              disabled={isImportingPackage}
+              onChange={handleImportPackage}
+            />
+          </label>
         </div>
       </div>
 
@@ -259,7 +311,7 @@ export function ExportCenterPage() {
           <div className="mt-5 rounded-2xl border border-dashed border-slate-700 bg-slate-950 p-8 text-center">
             <h3 className="text-lg font-semibold">No inspections yet</h3>
             <p className="mt-2 text-sm text-slate-400">
-              Create an inspection, import photos, add annotations and return here to export ZIP.
+              Create an inspection, import photos, add annotations or import an existing ZIP package.
             </p>
           </div>
         )}
