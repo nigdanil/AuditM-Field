@@ -46,9 +46,15 @@ export async function countPhotosByInspection(inspectionId: string): Promise<num
 }
 
 export async function deletePhoto(id: string): Promise<void> {
-  await db.photos.delete(id);
+  await db.transaction('rw', db.photos, db.annotations, async () => {
+    await db.annotations.where('photoId').equals(id).delete();
+    await db.photos.delete(id);
+  });
 }
 
 export async function deletePhotosByInspection(inspectionId: string): Promise<void> {
-  await db.photos.where('inspectionId').equals(inspectionId).delete();
+  await db.transaction('rw', db.photos, db.annotations, async () => {
+    await db.annotations.where('inspectionId').equals(inspectionId).delete();
+    await db.photos.where('inspectionId').equals(inspectionId).delete();
+  });
 }

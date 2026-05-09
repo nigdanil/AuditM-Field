@@ -79,7 +79,8 @@ export async function updateInspectionStatus(
 }
 
 export async function deleteInspection(id: string): Promise<void> {
-  await db.transaction('rw', db.inspections, db.photos, async () => {
+  await db.transaction('rw', db.inspections, db.photos, db.annotations, async () => {
+    await db.annotations.where('inspectionId').equals(id).delete();
     await db.photos.where('inspectionId').equals(id).delete();
     await db.inspections.delete(id);
   });
