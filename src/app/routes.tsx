@@ -5,6 +5,7 @@ import { DashboardPage } from '../pages/dashboard/DashboardPage';
 import { ExportCenterPage } from '../pages/export-center/ExportCenterPage';
 import { InspectionDetailPage } from '../pages/inspection-detail/InspectionDetailPage';
 import { InspectionsListPage } from '../pages/inspections-list/InspectionsListPage';
+import { PhotoAnnotatorEntryPage } from '../pages/photo-annotator/PhotoAnnotatorEntryPage';
 import { PhotoAnnotatorPage } from '../pages/photo-annotator/PhotoAnnotatorPage';
 import { SettingsPage } from '../pages/settings/SettingsPage';
 import { AppLayout } from '../widgets/app-layout/AppLayout';
@@ -33,6 +34,10 @@ export const router = createBrowserRouter([
       {
         path: 'inspections/:inspectionId',
         element: <InspectionDetailPage />,
+      },
+      {
+        path: 'annotator',
+        element: <PhotoAnnotatorEntryPage />,
       },
       {
         path: 'photos/:photoId/annotate',

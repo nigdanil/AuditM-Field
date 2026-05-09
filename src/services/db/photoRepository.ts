@@ -39,6 +39,10 @@ export async function getPhotoById(id: string): Promise<PhotoRecord | undefined>
   return db.photos.get(id);
 }
 
+export async function listRecentPhotos(limit = 50): Promise<PhotoRecord[]> {
+  return db.photos.orderBy('createdAt').reverse().limit(limit).toArray();
+}
+
 export async function listPhotosByInspection(inspectionId: string): Promise<PhotoRecord[]> {
   return db.photos.where('inspectionId').equals(inspectionId).reverse().sortBy('createdAt');
 }

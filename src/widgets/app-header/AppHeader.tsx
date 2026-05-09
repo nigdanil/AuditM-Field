@@ -25,7 +25,7 @@ const navItems = [
     icon: ClipboardCheck,
   },
   {
-    to: '/photos/demo/annotate',
+    to: '/annotator',
     label: 'Annotator',
     icon: ImagePlus,
   },
