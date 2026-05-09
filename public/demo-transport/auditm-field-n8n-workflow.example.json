@@ -1,0 +1,90 @@
+{
+  "name": "AuditM-Field Transport Receiver",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "auditm-field-package",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "auditm-field-webhook",
+      "name": "AuditM-Field Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "auditm-field-package"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst json = item.json ?? {};\nconst binary = item.binary ?? {};\nconst body = json.body ?? json;\n\nfunction readBinaryJson(key) {\n  const entry = binary[key];\n\n  if (!entry?.data) {\n    return null;\n  }\n\n  try {\n    return JSON.parse(Buffer.from(entry.data, 'base64').toString('utf8'));\n  } catch (error) {\n    return {\n      parseError: error.message,\n      fileName: entry.fileName,\n      mimeType: entry.mimeType\n    };\n  }\n}\n\nfunction getField(key) {\n  return body[key] ?? json[key] ?? null;\n}\n\nconst metadata = readBinaryJson('metadata') ?? {};\nconst manifest = readBinaryJson('manifest') ?? metadata.manifest ?? {};\nconst zipFile = binary.file ?? null;\n\nconst transport = {\n  contractVersion: getField('contractVersion') ?? metadata.contractVersion ?? 'unknown',\n  packageFormatVersion: getField('packageFormatVersion') ?? metadata.packageFormatVersion ?? manifest?.app?.packageFormatVersion ?? 'unknown',\n  inspectionId: getField('inspectionId') ?? metadata.inspectionId ?? manifest?.inspection?.id ?? 'unknown',\n  inspectionTitle: getField('inspectionTitle') ?? metadata.inspectionTitle ?? manifest?.inspection?.title ?? 'unknown',\n  configId: getField('configId') ?? metadata.configId ?? manifest?.inspection?.configId ?? 'unknown',\n  configName: getField('configName') ?? metadata.configName ?? manifest?.inspection?.configName ?? 'unknown',\n  adapterId: getField('adapterId') ?? metadata.adapterId ?? 'webhook',\n  fileName: getField('fileName') ?? metadata.fileName ?? zipFile?.fileName ?? 'auditm-field-package.zip',\n  fileSize: Number(getField('fileSize') ?? metadata.fileSize ?? 0),\n  exportedAt: getField('exportedAt') ?? metadata.exportedAt ?? manifest?.app?.exportedAt ?? new Date().toISOString()\n};\n\nconst response = {\n  accepted: true,\n  jobId: `n8n-execution-${$execution.id}`,\n  message: `AuditM-Field package accepted: ${transport.inspectionTitle}`,\n  externalUrl: `https://your-n8n-host.example/execution/${$execution.id}`,\n  status: 'PROCESSING'\n};\n\nreturn [\n  {\n    json: {\n      transport,\n      manifest,\n      metadata,\n      file: zipFile\n        ? {\n            fileName: zipFile.fileName,\n            mimeType: zipFile.mimeType,\n            fileSize: zipFile.fileSize\n          }\n        : null,\n      response\n    },\n    binary\n  }\n];"
+      },
+      "id": "normalize-transport-metadata",
+      "name": "Normalize transport metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.response }}",
+        "options": {}
+      },
+      "id": "respond-to-auditm-field",
+      "name": "Respond to AuditM-Field",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        640,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "AuditM-Field Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize transport metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize transport metadata": {
+      "main": [
+        [
+          {
+            "node": "Respond to AuditM-Field",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2026-05-10T00:00:00.000Z",
+      "updatedAt": "2026-05-10T00:00:00.000Z",
+      "id": "auditm-field",
+      "name": "AuditM-Field"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2026-05-10T00:00:00.000Z",
+  "versionId": "auditm-field-transport-example-v1"
+}

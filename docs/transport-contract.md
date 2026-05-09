@@ -1,8 +1,8 @@
 # AuditM-Field Transport Contract
 
-AuditM-Field sends an exported inspection package to external systems through HTTP/Webhook storage adapters.
+AuditM-Field sends exported inspection packages to external systems through HTTP/Webhook storage adapters.
 
-The recommended production path is:
+Recommended production path:
 
 ```text
 AuditM-Field PWA
@@ -81,17 +81,27 @@ Field meanings:
 | `externalUrl` | string  | Link to external job/execution                                |
 | `status`      | string  | External status, for example `PROCESSING`, `ACCEPTED`, `DONE` |
 
-## n8n setup
+## n8n example
+
+Importable workflow:
+
+```text
+public/demo-transport/auditm-field-n8n-workflow.example.json
+```
+
+Detailed guide:
+
+```text
+docs/n8n-workflow-example.md
+```
 
 Recommended n8n workflow:
 
 ```text
 Webhook node
-  -> Read Binary File / Move Binary Data if needed
-  -> Store ZIP to disk/S3/Drive/backend
-  -> Parse metadata JSON
-  -> Start OCR/CV/LLM pipeline
-  -> Respond to Webhook
+  -> Normalize transport metadata
+  -> Store ZIP / send to backend / start AI pipeline
+  -> Respond to AuditM-Field
 ```
 
 Webhook node settings:
@@ -105,28 +115,31 @@ Metadata field: metadata
 Manifest field: manifest
 ```
 
-Respond to Webhook example:
+## Future AI suggestions import
+
+Later OCR/CV/LLM results should be imported back into AuditM-Field as JSON, preserving source:
 
 ```json
 {
-  "accepted": true,
-  "jobId": "{{$execution.id}}",
-  "message": "AuditM-Field package accepted",
-  "externalUrl": "https://n8n.example.com/workflow/{{$workflow.id}}/executions/{{$execution.id}}",
-  "status": "PROCESSING"
+  "schemaVersion": "1.0.0",
+  "source": "ai",
+  "provider": "n8n-demo",
+  "inspectionId": "inspection-demo-id",
+  "createdAt": "2026-05-10T00:00:00.000Z",
+  "suggestions": []
 }
 ```
 
-## Future response imports
+Example:
 
-Later AI/OCR suggestions should be imported back into AuditM-Field as a separate package or JSON file, preserving the source:
+```text
+public/demo-transport/ai-suggestions.example.json
+```
 
-```json
-{
-  "source": "ai",
-  "inspectionId": "abc",
-  "photoId": "photo-001",
-  "suggestions": []
-}
+Important rule:
+
+```text
+Do not call AI providers directly from the PWA.
+Use PWA -> n8n/backend -> AI providers.
 ```
 
