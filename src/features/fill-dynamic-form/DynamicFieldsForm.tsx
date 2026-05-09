@@ -17,6 +17,8 @@ type DynamicFieldsFormProps = {
   dictionaries: Record<string, string[]>;
   values: DynamicFormValues;
   onSubmit: (values: DynamicFormValues) => Promise<void> | void;
+  submitLabel?: string;
+  emptyMessage?: string;
 };
 
 type FieldOption = {
@@ -358,6 +360,8 @@ export function DynamicFieldsForm({
   dictionaries,
   values,
   onSubmit,
+  submitLabel = 'Save form',
+  emptyMessage = 'No dynamic form configured for the active config.',
 }: DynamicFieldsFormProps) {
   const defaultValues = useMemo(() => buildDefaultValues(fields, values), [fields, values]);
 
@@ -381,7 +385,7 @@ export function DynamicFieldsForm({
   if (fields.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-slate-700 bg-slate-950 p-4 text-sm text-slate-500">
-        No annotation form configured for the active config.
+        {emptyMessage}
       </div>
     );
   }
@@ -403,7 +407,7 @@ export function DynamicFieldsForm({
         disabled={isSubmitting}
         className="w-full rounded-xl bg-sky-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isSubmitting ? 'Saving...' : 'Save form'}
+        {isSubmitting ? 'Saving...' : submitLabel}
       </button>
     </form>
   );

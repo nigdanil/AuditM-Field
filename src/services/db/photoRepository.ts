@@ -16,6 +16,7 @@ export async function createPhotosFromFiles(input: {
   files: File[];
   type: string;
   comment?: string;
+  attributes?: Record<string, unknown>;
 }): Promise<PhotoRecord[]> {
   const photos = await Promise.all(
     input.files.map((file) =>
@@ -24,6 +25,7 @@ export async function createPhotosFromFiles(input: {
         type: input.type,
         file,
         comment: input.comment,
+        attributes: input.attributes ?? {},
       }),
     ),
   );
@@ -43,6 +45,17 @@ export async function listPhotosByInspection(inspectionId: string): Promise<Phot
 
 export async function countPhotosByInspection(inspectionId: string): Promise<number> {
   return db.photos.where('inspectionId').equals(inspectionId).count();
+}
+
+export async function updatePhotoAttributes(input: {
+  id: string;
+  attributes: Record<string, unknown>;
+}): Promise<PhotoRecord | undefined> {
+  await db.photos.update(input.id, {
+    attributes: input.attributes,
+  });
+
+  return getPhotoById(input.id);
 }
 
 export async function deletePhoto(id: string): Promise<void> {

@@ -20,6 +20,7 @@ function normalizeCreateInspectionInput(input: CreateInspectionInput): CreateIns
     locationName: input.locationName?.trim() || undefined,
     address: input.address?.trim() || undefined,
     comment: input.comment?.trim() || undefined,
+    attributes: input.attributes ?? {},
   };
 }
 
@@ -62,6 +63,18 @@ export async function updateInspection(
   await db.inspections.update(id, patch);
 
   return getInspectionById(id);
+}
+
+export async function updateInspectionAttributes(input: {
+  id: string;
+  attributes: Record<string, unknown>;
+}): Promise<Inspection | undefined> {
+  await db.inspections.update(input.id, {
+    attributes: input.attributes,
+    updatedAt: new Date().toISOString(),
+  });
+
+  return getInspectionById(input.id);
 }
 
 export async function updateInspectionStatus(

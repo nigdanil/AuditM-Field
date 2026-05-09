@@ -30,6 +30,7 @@ export function createInspectionModel(input: CreateInspectionInput): Inspection 
     address: normalizeOptionalText(input.address),
     comment: normalizeOptionalText(input.comment),
     status: 'DRAFT',
+    attributes: input.attributes ?? {},
     createdAt: now,
     updatedAt: now,
   };

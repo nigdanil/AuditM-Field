@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+const dynamicAttributesSchema = z.record(z.string(), z.unknown());
+
 export const inspectionStatusValues = [
   'DRAFT',
   'READY',
@@ -20,6 +22,7 @@ export const inspectionSchema = z.object({
   locationName: z.string().optional(),
   address: z.string().optional(),
   status: inspectionStatusSchema,
+  attributes: dynamicAttributesSchema.optional().default({}),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
   comment: z.string().optional(),
@@ -32,6 +35,7 @@ export const createInspectionInputSchema = z.object({
   locationName: z.string().optional(),
   address: z.string().optional(),
   comment: z.string().optional(),
+  attributes: dynamicAttributesSchema.optional(),
 });
 
 export const updateInspectionInputSchema = z.object({
@@ -40,4 +44,5 @@ export const updateInspectionInputSchema = z.object({
   address: z.string().optional(),
   comment: z.string().optional(),
   status: inspectionStatusSchema.optional(),
+  attributes: dynamicAttributesSchema.optional(),
 });

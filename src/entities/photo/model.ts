@@ -46,6 +46,7 @@ export async function createPhotoModel(input: CreatePhotoInput): Promise<PhotoRe
     inspectionId: input.inspectionId,
     type: input.type,
     comment: input.comment,
+    attributes: input.attributes,
   });
 
   const dimensions = await getImageDimensions(input.file);
@@ -60,6 +61,7 @@ export async function createPhotoModel(input: CreatePhotoInput): Promise<PhotoRe
     size: input.file.size,
     width: dimensions.width,
     height: dimensions.height,
+    attributes: parsedInput.attributes ?? {},
     createdAt: new Date().toISOString(),
     comment: normalizeOptionalText(parsedInput.comment),
   };
