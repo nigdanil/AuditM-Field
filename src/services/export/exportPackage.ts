@@ -8,7 +8,7 @@ import { db } from '../db/db';
 
 type ExportPhotoMetadata = Omit<PhotoRecord, 'blob'>;
 
-type ExportManifest = {
+export type ExportManifest = {
   app: {
     name: 'AuditM-Field';
     packageFormatVersion: '1.0.0';
@@ -57,12 +57,31 @@ export type BuildInspectionExportResult = {
   manifest: ExportManifest;
 };
 
+export type BuildInspectionExportPreviewResult = {
+  fileName: string;
+  manifest: ExportManifest;
+  photoCount: number;
+  annotationCount: number;
+  canExport: boolean;
+  disabledReason?: string;
+};
+
+type InspectionExportData = {
+  inspection: Inspection;
+  photos: PhotoRecord[];
+  annotations: ImageAnnotationRecord[];
+  photoFilePaths: string[];
+  annotationFilePaths: string[];
+  manifest: ExportManifest;
+  fileName: string;
+};
+
 function toJsonBlobContent(value: unknown): string {
   return JSON.stringify(value, null, 2);
 }
 
 function formatExportTimestamp(value: Date): string {
-  return value.toISOString().replaceAll(':', '-').replaceAll('.', '-');
+  return value.toISOString().slice(0, 19).replace('T', '_').replaceAll(':', '-');
 }
 
 function sanitizePathPart(value: string): string {
@@ -79,10 +98,10 @@ function sanitizePathPart(value: string): string {
 }
 
 function getExportFileName(inspection: Inspection, exportedAt: Date): string {
-  const title = sanitizePathPart(inspection.title);
+  const inspectionId = sanitizePathPart(inspection.id);
   const timestamp = formatExportTimestamp(exportedAt);
 
-  return `AuditM-Field_export_${title}_${timestamp}.zip`;
+  return `auditm-field_${inspectionId}_${timestamp}.zip`;
 }
 
 function toPhotoMetadata(photo: PhotoRecord): ExportPhotoMetadata {
@@ -112,9 +131,19 @@ function groupAnnotationsByPhoto(
   }, {});
 }
 
+function getPhotoFilePath(photo: PhotoRecord): string {
+  const safeFileName = sanitizePathPart(photo.fileName);
+
+  return `photos/${photo.id}_${safeFileName}`;
+}
+
+function getAnnotationFilePath(photoId: string): string {
+  return `annotations/${photoId}.annotations.json`;
+}
+
 function buildManifest(input: {
   inspection: Inspection;
-  config: AuditConfig;
+  config: AuditConfig | null;
   configSource?: ConfigLoadSource;
   configLoadedAt?: string;
   photos: PhotoRecord[];
@@ -137,12 +166,12 @@ function buildManifest(input: {
       configName: input.inspection.configName,
     },
     config: {
-      included: true,
-      id: input.config.id,
-      name: input.config.name,
-      version: input.config.version,
-      source: input.configSource,
-      loadedAt: input.configLoadedAt,
+      included: Boolean(input.config),
+      id: input.config?.id,
+      name: input.config?.name,
+      version: input.config?.version,
+      source: input.config ? input.configSource : undefined,
+      loadedAt: input.config ? input.configLoadedAt : undefined,
     },
     counts: {
       photos: input.photos.length,
@@ -150,7 +179,7 @@ function buildManifest(input: {
     },
     files: {
       manifest: 'manifest.json',
-      config: 'config.json',
+      config: input.config ? 'config.json' : undefined,
       inspection: `inspections/inspection_${input.inspection.id}.json`,
       photosMetadata: 'photos/photos.metadata.json',
       annotations: 'annotations/annotations.json',
@@ -160,23 +189,13 @@ function buildManifest(input: {
   };
 }
 
-export async function buildInspectionExportPackage(
+async function loadInspectionExportData(
   input: BuildInspectionExportInput,
-): Promise<BuildInspectionExportResult> {
+): Promise<InspectionExportData> {
   const inspection = await db.inspections.get(input.inspectionId);
 
   if (!inspection) {
     throw new Error('Inspection not found.');
-  }
-
-  if (!input.activeConfig) {
-    throw new Error('Active config is not loaded. Load matching config before export.');
-  }
-
-  if (input.activeConfig.id !== inspection.configId) {
-    throw new Error(
-      `Active config mismatch. Inspection uses "${inspection.configId}", active config is "${input.activeConfig.id}".`,
-    );
   }
 
   const [photos, annotations] = await Promise.all([
@@ -185,52 +204,9 @@ export async function buildInspectionExportPackage(
   ]);
 
   const exportedAt = new Date();
-  const zip = new JSZip();
-
-  const inspectionJson = {
-    ...inspection,
-    attributes: inspection.attributes ?? {},
-  };
-
-  const photoMetadata = photos.map(toPhotoMetadata);
   const annotationsByPhoto = groupAnnotationsByPhoto(annotations);
-
-  const inspectionsFolder = zip.folder('inspections');
-  const photosFolder = zip.folder('photos');
-  const annotationsFolder = zip.folder('annotations');
-
-  if (!inspectionsFolder || !photosFolder || !annotationsFolder) {
-    throw new Error('Failed to create ZIP folder structure.');
-  }
-
-  inspectionsFolder.file(
-    `inspection_${inspection.id}.json`,
-    toJsonBlobContent(inspectionJson),
-  );
-
-  photosFolder.file('photos.metadata.json', toJsonBlobContent(photoMetadata));
-  annotationsFolder.file('annotations.json', toJsonBlobContent(annotations));
-  zip.file('config.json', toJsonBlobContent(input.activeConfig));
-
-  const photoFilePaths = photos.map((photo) => {
-    const safeFileName = sanitizePathPart(photo.fileName);
-    const photoPath = `photos/${photo.id}_${safeFileName}`;
-
-    photosFolder.file(`${photo.id}_${safeFileName}`, photo.blob);
-
-    return photoPath;
-  });
-
-  const annotationFilePaths = Object.entries(annotationsByPhoto).map(
-    ([photoId, photoAnnotations]) => {
-      const fileName = `${photoId}.annotations.json`;
-      const annotationPath = `annotations/${fileName}`;
-
-      annotationsFolder.file(fileName, toJsonBlobContent(photoAnnotations));
-
-      return annotationPath;
-    },
-  );
+  const photoFilePaths = photos.map(getPhotoFilePath);
+  const annotationFilePaths = Object.keys(annotationsByPhoto).map(getAnnotationFilePath);
 
   const manifest = buildManifest({
     inspection,
@@ -244,7 +220,98 @@ export async function buildInspectionExportPackage(
     exportedAt,
   });
 
-  zip.file('manifest.json', toJsonBlobContent(manifest));
+  return {
+    inspection,
+    photos,
+    annotations,
+    photoFilePaths,
+    annotationFilePaths,
+    manifest,
+    fileName: getExportFileName(inspection, exportedAt),
+  };
+}
+
+export async function buildInspectionExportPreview(
+  input: BuildInspectionExportInput,
+): Promise<BuildInspectionExportPreviewResult> {
+  const data = await loadInspectionExportData(input);
+
+  let disabledReason: string | undefined;
+
+  if (!input.activeConfig) {
+    disabledReason = 'Active config is not loaded.';
+  } else if (input.activeConfig.id !== data.inspection.configId) {
+    disabledReason = `Active config mismatch. Expected "${data.inspection.configId}".`;
+  } else if (data.photos.length === 0) {
+    disabledReason = 'Add at least one photo before export.';
+  }
+
+  return {
+    fileName: data.fileName,
+    manifest: data.manifest,
+    photoCount: data.photos.length,
+    annotationCount: data.annotations.length,
+    canExport: !disabledReason,
+    disabledReason,
+  };
+}
+
+export async function buildInspectionExportPackage(
+  input: BuildInspectionExportInput,
+): Promise<BuildInspectionExportResult> {
+  const activeConfig = input.activeConfig;
+  const data = await loadInspectionExportData(input);
+
+  if (!activeConfig) {
+    throw new Error('Active config is not loaded. Load matching config before export.');
+  }
+
+  if (activeConfig.id !== data.inspection.configId) {
+    throw new Error(
+      `Active config mismatch. Inspection uses "${data.inspection.configId}", active config is "${activeConfig.id}".`,
+    );
+  }
+
+  if (data.photos.length === 0) {
+    throw new Error('Add at least one photo before export.');
+  }
+
+  const zip = new JSZip();
+  const inspectionJson = {
+    ...data.inspection,
+    attributes: data.inspection.attributes ?? {},
+  };
+  const photoMetadata = data.photos.map(toPhotoMetadata);
+  const annotationsByPhoto = groupAnnotationsByPhoto(data.annotations);
+
+  const inspectionsFolder = zip.folder('inspections');
+  const photosFolder = zip.folder('photos');
+  const annotationsFolder = zip.folder('annotations');
+
+  if (!inspectionsFolder || !photosFolder || !annotationsFolder) {
+    throw new Error('Failed to create ZIP folder structure.');
+  }
+
+  inspectionsFolder.file(
+    `inspection_${data.inspection.id}.json`,
+    toJsonBlobContent(inspectionJson),
+  );
+
+  photosFolder.file('photos.metadata.json', toJsonBlobContent(photoMetadata));
+  annotationsFolder.file('annotations.json', toJsonBlobContent(data.annotations));
+  zip.file('config.json', toJsonBlobContent(activeConfig));
+
+  data.photos.forEach((photo) => {
+    const photoPath = getPhotoFilePath(photo).replace('photos/', '');
+
+    photosFolder.file(photoPath, photo.blob);
+  });
+
+  Object.entries(annotationsByPhoto).forEach(([photoId, photoAnnotations]) => {
+    annotationsFolder.file(`${photoId}.annotations.json`, toJsonBlobContent(photoAnnotations));
+  });
+
+  zip.file('manifest.json', toJsonBlobContent(data.manifest));
 
   const blob = await zip.generateAsync({
     type: 'blob',
@@ -256,8 +323,8 @@ export async function buildInspectionExportPackage(
 
   return {
     blob,
-    manifest,
-    fileName: getExportFileName(inspection, exportedAt),
+    manifest: data.manifest,
+    fileName: data.fileName,
   };
 }
 
