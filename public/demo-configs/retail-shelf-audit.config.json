@@ -21,22 +21,26 @@
     {
       "id": "product_area",
       "label": "Product area",
-      "shape": "rectangle"
+      "shape": "rectangle",
+      "color": "#38bdf8"
     },
     {
       "id": "competitor_area",
       "label": "Competitor area",
-      "shape": "rectangle"
+      "shape": "rectangle",
+      "color": "#f97316"
     },
     {
       "id": "price_tag",
       "label": "Price tag",
-      "shape": "rectangle"
+      "shape": "rectangle",
+      "color": "#22c55e"
     },
     {
       "id": "violation",
       "label": "Violation",
-      "shape": "rectangle"
+      "shape": "rectangle",
+      "color": "#ef4444"
     }
   ],
   "dictionaries": {

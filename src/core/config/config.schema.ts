@@ -39,6 +39,7 @@ export const annotationTypeConfigSchema = z.object({
   id: z.string().min(1, 'Annotation type id is required'),
   label: z.string().min(1, 'Annotation type label is required'),
   shape: annotationShapeSchema.optional().default('rectangle'),
+  color: z.string().optional(),
   description: z.string().optional(),
 });
 

@@ -7,6 +7,14 @@ import {
   UserSelectAction,
   useAnnotator,
 } from '@annotorious/react';
+
+import type {
+  AnnotationState,
+  Color,
+  DrawingStyle,
+  ImageAnnotation,
+} from '@annotorious/react';
+
 import '@annotorious/react/annotorious-react.css';
 import { ArrowLeft, ImagePlus, Trash2 } from 'lucide-react';
 
@@ -27,7 +35,9 @@ const fallbackAnnotationType: AnnotationTypeConfig = {
   id: 'annotation',
   label: 'Annotation',
   shape: 'rectangle',
+  color: '#38bdf8',
 };
+const fallbackAnnotationColor: Color = '#38bdf8';
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleString();
@@ -45,6 +55,7 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
     [photo.id],
     [],
   );
+  const [visibleAnnotationTypeIds, setVisibleAnnotationTypeIds] = useState<string[]>([]);
 
   const annotationTypes = useMemo(() => {
     const configuredTypes = activeConfigState?.config.annotationTypes ?? [];
@@ -52,10 +63,97 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
     return configuredTypes.length > 0 ? configuredTypes : [fallbackAnnotationType];
   }, [activeConfigState]);
 
+  useEffect(() => {
+    setVisibleAnnotationTypeIds((currentVisibleTypes) => {
+      const availableTypeIds = annotationTypes.map((annotationType) => annotationType.id);
+
+      if (currentVisibleTypes.length === 0) {
+        return availableTypeIds;
+      }
+
+      const nextVisibleTypes = currentVisibleTypes.filter((typeId) =>
+        availableTypeIds.includes(typeId),
+      );
+
+      return nextVisibleTypes.length > 0 ? nextVisibleTypes : availableTypeIds;
+    });
+  }, [annotationTypes]);
+
   const effectiveAnnotationTypeId = selectedAnnotationTypeId || annotationTypes[0].id;
   const effectiveAnnotationType =
     annotationTypes.find((annotationType) => annotationType.id === effectiveAnnotationTypeId) ??
     annotationTypes[0];
+  const annotationTypeById = useMemo(() => {
+    return new Map(annotationTypes.map((annotationType) => [annotationType.id, annotationType]));
+  }, [annotationTypes]);
+
+  const annotationRecordById = useMemo(() => {
+    return new Map(annotationRecords.map((annotation) => [annotation.id, annotation]));
+  }, [annotationRecords]);
+
+  const toAnnotationColor = (color: string | undefined): Color => {
+    if (color?.startsWith('#') || color?.startsWith('rgb(') || color?.startsWith('rgba(')) {
+      return color as Color;
+    }
+
+    return fallbackAnnotationColor;
+  };
+
+  const getAnnotationColor = (typeId: string): Color => {
+    return toAnnotationColor(annotationTypeById.get(typeId)?.color);
+  };
+
+  const getRawAnnotationId = (annotation: unknown): string | null => {
+    if (!annotation || typeof annotation !== 'object') {
+      return null;
+    }
+
+    const id = (annotation as { id?: unknown }).id;
+
+    return typeof id === 'string' ? id : null;
+  };
+
+  const annotationStyle = (
+    annotation: ImageAnnotation,
+    state?: AnnotationState,
+  ): DrawingStyle => {
+    const annotationId = getRawAnnotationId(annotation);
+    const annotationRecord = annotationId ? annotationRecordById.get(annotationId) : undefined;
+    const color = annotationRecord
+      ? getAnnotationColor(annotationRecord.type)
+      : fallbackAnnotationColor;
+    const isSelected = state?.selected ?? false;
+    const isHovered = state?.hovered ?? false;
+
+    return {
+      fill: color,
+      fillOpacity: isSelected ? 0.28 : isHovered ? 0.22 : 0.14,
+      stroke: color,
+      strokeOpacity: 1,
+      strokeWidth: isSelected ? 4 : isHovered ? 3 : 2,
+    };
+  };
+
+  const annotationFilter = (annotation: ImageAnnotation): boolean => {
+    const annotationId = getRawAnnotationId(annotation);
+    const annotationRecord = annotationId ? annotationRecordById.get(annotationId) : undefined;
+
+    if (!annotationRecord) {
+      return true;
+    }
+
+    return visibleAnnotationTypeIds.includes(annotationRecord.type);
+  };
+
+  const toggleVisibleAnnotationType = (typeId: string) => {
+    setVisibleAnnotationTypeIds((currentVisibleTypes) => {
+      if (currentVisibleTypes.includes(typeId)) {
+        return currentVisibleTypes.filter((currentTypeId) => currentTypeId !== typeId);
+      }
+
+      return [...currentVisibleTypes, typeId];
+    });
+  };
 
   useEffect(() => {
     const nextObjectUrl = URL.createObjectURL(photo.blob);
@@ -145,7 +243,11 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
       <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
-        <ImageAnnotator userSelectAction={UserSelectAction.EDIT}>
+        <ImageAnnotator
+          userSelectAction={UserSelectAction.EDIT}
+          style={annotationStyle}
+          filter={annotationFilter}
+        >
           <img
             src={objectUrl}
             alt={photo.fileName}
@@ -195,6 +297,41 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
           <div className="rounded-xl border border-dashed border-slate-700 bg-slate-950 p-4 text-slate-400">
             Draw a rectangle on the photo. Created annotations are saved locally in IndexedDB.
           </div>
+          <div className="rounded-xl bg-slate-950 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="font-semibold text-slate-100">Visible types</h3>
+              <span className="rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-300">
+                {visibleAnnotationTypeIds.length}/{annotationTypes.length}
+              </span>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {annotationTypes.map((annotationType) => {
+                const isVisible = visibleAnnotationTypeIds.includes(annotationType.id);
+                const color = getAnnotationColor(annotationType.id);
+
+                return (
+                  <button
+                    key={annotationType.id}
+                    type="button"
+                    onClick={() => toggleVisibleAnnotationType(annotationType.id)}
+                    className={[
+                      'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs transition',
+                      isVisible
+                        ? 'border-slate-500 bg-slate-800 text-slate-100'
+                        : 'border-slate-800 bg-slate-950 text-slate-500',
+                    ].join(' ')}
+                  >
+                    <span
+                      className="h-2.5 w-2.5 rounded-full"
+                      style={{ backgroundColor: color }}
+                    />
+                    {annotationType.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           {statusMessage ? (
             <div className="rounded-xl border border-emerald-900 bg-emerald-950/30 px-4 py-3 text-emerald-100">
@@ -216,6 +353,7 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
                   <AnnotationListItem
                     key={annotation.id}
                     annotation={annotation}
+                    color={getAnnotationColor(annotation.type)}
                     onSelect={() => annotator?.setSelected(annotation.id, true)}
                     onDelete={() => handleDeleteAnnotationFromPanel(annotation.id)}
                   />
@@ -235,10 +373,12 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
 
 function AnnotationListItem({
   annotation,
+  color,
   onSelect,
   onDelete,
 }: {
   annotation: ImageAnnotationRecord;
+  color: Color;
   onSelect: () => void;
   onDelete: () => void;
 }) {
@@ -257,7 +397,10 @@ function AnnotationListItem({
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="font-medium text-slate-100">{annotation.label}</div>
+          <div className="flex items-center gap-2 font-medium text-slate-100">
+            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
+            {annotation.label}
+          </div>
           <div className="mt-1 font-mono text-xs text-slate-500">{annotation.id}</div>
         </div>
 
