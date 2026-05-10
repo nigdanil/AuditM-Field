@@ -8,7 +8,7 @@ Current registry index:
 
 ```text
 https://raw.githubusercontent.com/nigdanil/AuditM-Field/main/public/config-registry/index.json
-````
+```
 
 Repository path:
 

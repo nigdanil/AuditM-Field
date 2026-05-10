@@ -16,7 +16,38 @@ photos/
   <photoId>_<fileName>
 annotations/
   annotations.json
+  <photoId>.annotations.json
+rendered/
+  <photoId>.overlay.png
+  visual-evidence.warnings.json
+crops/
+  <photoId>/
+    <annotationId>.png
 ```
+
+---
+
+## Source of truth
+
+Original photos are exported without drawn boxes.
+
+This is intentional.
+
+```text
+Original photo
++
+annotations.json
++
+overlay previews
++
+annotation crops
+```
+
+Original photos remain clean for OCR, CV, LLM and repeated processing.
+
+Overlay images are only visual evidence for humans and reports.
+
+Crops are useful for AI pipelines because they isolate each annotated area.
 
 ---
 
@@ -30,7 +61,7 @@ Example:
 {
   "app": {
     "name": "AuditM-Field",
-    "packageFormatVersion": "1.0.0",
+    "packageFormatVersion": "1.1.0",
     "exportedAt": "2026-05-10T10:00:00.000Z"
   },
   "inspection": {
@@ -48,7 +79,9 @@ Example:
   },
   "counts": {
     "photos": 1,
-    "annotations": 2
+    "annotations": 2,
+    "renderedOverlays": 1,
+    "annotationCrops": 2
   },
   "files": {
     "manifest": "manifest.json",
@@ -56,7 +89,10 @@ Example:
     "inspection": "inspections/inspection_<id>.json",
     "photosMetadata": "photos/photos.metadata.json",
     "annotations": "annotations/annotations.json",
-    "photos": []
+    "photos": [],
+    "annotationsByPhoto": [],
+    "renderedOverlays": [],
+    "annotationCrops": []
   }
 }
 ```
@@ -110,6 +146,8 @@ createdAt
 
 Photo binary files are stored separately in the `photos/` folder.
 
+Original photo files are not modified and do not contain rendered annotation boxes.
+
 ---
 
 ## annotations/annotations.json
@@ -140,6 +178,80 @@ imported
 
 ---
 
+## annotations/<photoId>.annotations.json
+
+Contains annotations grouped by photo.
+
+This is useful for backend/n8n/AI workflows where a single photo and its annotations are processed together.
+
+---
+
+## rendered/<photoId>.overlay.png
+
+Human-readable visual preview.
+
+The overlay image contains:
+
+```text
+original photo
++ annotation boxes
++ annotation label
++ annotation source
+```
+
+Use this for:
+
+```text
+manual review
+reports
+emails
+n8n previews
+portfolio screenshots
+visual evidence
+```
+
+Do not use this as the only input for OCR/CV/LLM processing.
+
+---
+
+## crops/<photoId>/<annotationId>.png
+
+Cropped image regions generated from annotation geometry.
+
+Use this for:
+
+```text
+AI verification
+OCR on selected area
+classification
+brand/condition checks
+focused LLM vision prompts
+```
+
+---
+
+## rendered/visual-evidence.warnings.json
+
+Optional file.
+
+Created only when some annotations could not be rendered as overlay/crop because geometry could not be resolved.
+
+Example:
+
+```json
+{
+  "warnings": [
+    {
+      "id": "annotation-id",
+      "photoId": "photo-id",
+      "reason": "Annotation geometry could not be resolved."
+    }
+  ]
+}
+```
+
+---
+
 ## Import behavior
 
 ZIP import is idempotent:
@@ -152,6 +264,8 @@ annotations -> bulkPut
 
 Re-importing the same ZIP updates existing records by id.
 
+Visual evidence files are ignored during import because they can be generated again from original photos and annotations.
+
 ---
 
 ## Compatibility
@@ -159,7 +273,16 @@ Re-importing the same ZIP updates existing records by id.
 Current package format version:
 
 ```text
-1.0.0
+1.1.0
 ```
 
-Future versions should preserve backward compatibility where possible.
+Version `1.0.0` packages remain compatible because import only requires:
+
+```text
+manifest.json
+config.json
+inspections/
+photos/
+annotations/
+```
+

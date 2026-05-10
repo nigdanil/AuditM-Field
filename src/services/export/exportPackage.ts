@@ -6,12 +6,14 @@ import type { Inspection } from '../../entities/inspection/types';
 import type { PhotoRecord } from '../../entities/photo/types';
 import { db } from '../db/db';
 
+import { buildVisualEvidenceAssets } from './visualEvidence';
+
 type ExportPhotoMetadata = Omit<PhotoRecord, 'blob'>;
 
 export type ExportManifest = {
   app: {
     name: 'AuditM-Field';
-    packageFormatVersion: '1.0.0';
+    packageFormatVersion: '1.1.0';
     exportedAt: string;
   };
   inspection: {
@@ -32,6 +34,8 @@ export type ExportManifest = {
   counts: {
     photos: number;
     annotations: number;
+    renderedOverlays: number;
+    annotationCrops: number;
   };
   files: {
     manifest: string;
@@ -41,6 +45,8 @@ export type ExportManifest = {
     annotations: string;
     photos: string[];
     annotationsByPhoto: string[];
+    renderedOverlays: string[];
+    annotationCrops: string[];
   };
 };
 
@@ -150,12 +156,17 @@ function buildManifest(input: {
   annotations: ImageAnnotationRecord[];
   photoFilePaths: string[];
   annotationFilePaths: string[];
+  overlayFilePaths?: string[];
+  cropFilePaths?: string[];
   exportedAt: Date;
 }): ExportManifest {
+  const overlayFilePaths = input.overlayFilePaths ?? [];
+  const cropFilePaths = input.cropFilePaths ?? [];
+
   return {
     app: {
       name: 'AuditM-Field',
-      packageFormatVersion: '1.0.0',
+      packageFormatVersion: '1.1.0',
       exportedAt: input.exportedAt.toISOString(),
     },
     inspection: {
@@ -176,6 +187,8 @@ function buildManifest(input: {
     counts: {
       photos: input.photos.length,
       annotations: input.annotations.length,
+      renderedOverlays: overlayFilePaths.length,
+      annotationCrops: cropFilePaths.length,
     },
     files: {
       manifest: 'manifest.json',
@@ -185,6 +198,8 @@ function buildManifest(input: {
       annotations: 'annotations/annotations.json',
       photos: input.photoFilePaths,
       annotationsByPhoto: input.annotationFilePaths,
+      renderedOverlays: overlayFilePaths,
+      annotationCrops: cropFilePaths,
     },
   };
 }
@@ -276,6 +291,26 @@ export async function buildInspectionExportPackage(
     throw new Error('Add at least one photo before export.');
   }
 
+  const visualEvidence = await buildVisualEvidenceAssets({
+    photos: data.photos,
+    annotations: data.annotations,
+    config: activeConfig,
+  });
+
+  const manifest = buildManifest({
+    inspection: data.inspection,
+    config: activeConfig,
+    configSource: input.configSource,
+    configLoadedAt: input.configLoadedAt,
+    photos: data.photos,
+    annotations: data.annotations,
+    photoFilePaths: data.photoFilePaths,
+    annotationFilePaths: data.annotationFilePaths,
+    overlayFilePaths: visualEvidence.overlayFilePaths,
+    cropFilePaths: visualEvidence.cropFilePaths,
+    exportedAt: new Date(data.manifest.app.exportedAt),
+  });
+
   const zip = new JSZip();
   const inspectionJson = {
     ...data.inspection,
@@ -287,8 +322,10 @@ export async function buildInspectionExportPackage(
   const inspectionsFolder = zip.folder('inspections');
   const photosFolder = zip.folder('photos');
   const annotationsFolder = zip.folder('annotations');
+  const renderedFolder = zip.folder('rendered');
+  const cropsFolder = zip.folder('crops');
 
-  if (!inspectionsFolder || !photosFolder || !annotationsFolder) {
+  if (!inspectionsFolder || !photosFolder || !annotationsFolder || !renderedFolder || !cropsFolder) {
     throw new Error('Failed to create ZIP folder structure.');
   }
 
@@ -311,7 +348,20 @@ export async function buildInspectionExportPackage(
     annotationsFolder.file(`${photoId}.annotations.json`, toJsonBlobContent(photoAnnotations));
   });
 
-  zip.file('manifest.json', toJsonBlobContent(data.manifest));
+  visualEvidence.assets.forEach((asset) => {
+    zip.file(asset.path, asset.blob);
+  });
+
+  if (visualEvidence.skippedAnnotations.length > 0) {
+    zip.file(
+      'rendered/visual-evidence.warnings.json',
+      toJsonBlobContent({
+        warnings: visualEvidence.skippedAnnotations,
+      }),
+    );
+  }
+
+  zip.file('manifest.json', toJsonBlobContent(manifest));
 
   const blob = await zip.generateAsync({
     type: 'blob',
@@ -323,7 +373,7 @@ export async function buildInspectionExportPackage(
 
   return {
     blob,
-    manifest: data.manifest,
+    manifest,
     fileName: data.fileName,
   };
 }
