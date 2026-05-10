@@ -9,6 +9,7 @@ import type { AuditConfig, DynamicFieldConfig } from '../../core/config/types';
 import { inspectionStatusLabels } from '../../entities/inspection/model';
 import type { Inspection, InspectionStatus } from '../../entities/inspection/types';
 import type { PhotoRecord } from '../../entities/photo/types';
+import { getFileDebugLabel, isProbablyImageFile } from '../../entities/photo/fileUtils';
 import { DynamicFieldsForm } from '../../features/fill-dynamic-form/DynamicFieldsForm';
 import {
   getInspectionById,
@@ -282,7 +283,8 @@ export function InspectionDetailPage() {
 
   const handlePhotoUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files ?? []);
-    const imageFiles = selectedFiles.filter((file) => file.type.startsWith('image/'));
+    const imageFiles = selectedFiles.filter(isProbablyImageFile);
+    const rejectedFiles = selectedFiles.filter((file) => !isProbablyImageFile(file));
 
     event.target.value = '';
 
@@ -290,8 +292,23 @@ export function InspectionDetailPage() {
       return;
     }
 
+    if (selectedFiles.length === 0) {
+      setUploadError('No files selected. On Android, make sure the photo is available on this device.');
+      return;
+    }
+
     if (imageFiles.length === 0) {
-      setUploadError('Select at least one image file.');
+      setUploadError(
+        [
+          'Select at least one image file.',
+          'On Android offline mode, cloud-only Google Photos items may not be available.',
+          rejectedFiles.length > 0
+            ? `Rejected files: ${rejectedFiles.map(getFileDebugLabel).join('; ')}`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(' '),
+      );
       return;
     }
 
@@ -309,6 +326,14 @@ export function InspectionDetailPage() {
         nextInspectionAttributes: inspection.attributes ?? {},
         nextPhotos: [...photos, ...createdPhotos],
       });
+
+      if (rejectedFiles.length > 0) {
+        setUploadError(
+          `Imported ${createdPhotos.length} photo(s). Skipped non-image file(s): ${rejectedFiles
+            .map(getFileDebugLabel)
+            .join('; ')}`,
+        );
+      }
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : 'Failed to import photos.');
     } finally {

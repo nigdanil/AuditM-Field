@@ -2,6 +2,7 @@ import { nanoid } from 'nanoid';
 
 import { createPhotoInputSchema } from './schemas';
 import type { CreatePhotoInput, PhotoRecord } from './types';
+import { getEffectiveImageMimeType, isProbablyImageFile } from './fileUtils';
 
 interface ImageDimensions {
   width?: number;
@@ -15,7 +16,11 @@ function normalizeOptionalText(value: string | undefined): string | undefined {
 }
 
 function getImageDimensions(blob: Blob): Promise<ImageDimensions> {
-  if (!blob.type.startsWith('image/')) {
+  if (blob instanceof File && !isProbablyImageFile(blob)) {
+    return Promise.resolve({});
+  }
+
+  if (!(blob instanceof File) && blob.type && !blob.type.startsWith('image/')) {
     return Promise.resolve({});
   }
 
@@ -56,8 +61,8 @@ export async function createPhotoModel(input: CreatePhotoInput): Promise<PhotoRe
     inspectionId: parsedInput.inspectionId,
     type: parsedInput.type,
     blob: input.file,
-    fileName: input.file.name,
-    mimeType: input.file.type || 'application/octet-stream',
+    fileName: input.file.name || `photo_${Date.now()}`,
+    mimeType: getEffectiveImageMimeType(input.file),
     size: input.file.size,
     width: dimensions.width,
     height: dimensions.height,
