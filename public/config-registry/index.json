@@ -1,0 +1,15 @@
+{
+  "name": "AuditM-Field Config Registry",
+  "description": "Public demo audit configurations for AuditM-Field.",
+  "version": "1.0.0",
+  "configs": [
+    {
+      "id": "retail-shelf-audit",
+      "name": "Retail Shelf Audit",
+      "version": "1.0.0",
+      "description": "Demo configuration for retail shelf photo audits, product areas, price tags and violations.",
+      "domain": "retail",
+      "configUrl": "https://raw.githubusercontent.com/nigdanil/AuditM-Field/main/public/demo-configs/retail-shelf-audit.config.json"
+    }
+  ]
+}

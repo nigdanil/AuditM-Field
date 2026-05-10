@@ -192,6 +192,22 @@ Users can:
 
 ---
 
+## Public demo
+
+GitHub Pages demo:
+
+```text
+https://nigdanil.github.io/AuditM-Field/
+```
+
+Deployment guide:
+
+```text
+docs/github-pages.md
+```
+
+---
+
 ## Getting started
 
 ### Requirements
@@ -285,6 +301,7 @@ Short version:
 | `ARCHITECTURE.md` | Architecture overview |
 | `docs/demo-flow.md` | Step-by-step demo script |
 | `docs/configuration.md` | Audit config format |
+| `docs/config-registry.md` | GitHub config registry |
 | `docs/export-format.md` | ZIP export/import structure |
 | `docs/transport-contract.md` | HTTP/Webhook/n8n contract |
 | `docs/mock-upload-server.md` | Local mock server usage |

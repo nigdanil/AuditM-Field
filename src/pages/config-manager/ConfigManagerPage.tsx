@@ -1,6 +1,16 @@
 import type { ChangeEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { AlertCircle, CheckCircle2, FileJson, Link, Trash2, Upload } from 'lucide-react';
+import {
+  AlertCircle,
+  CheckCircle2,
+  DownloadCloud,
+  FileJson,
+  GitBranch,
+  Link,
+  RefreshCw,
+  Trash2,
+  Upload,
+} from 'lucide-react';
 
 import {
   clearActiveConfig,
@@ -14,6 +24,31 @@ interface StatusMessage {
   type: 'success' | 'error' | 'info';
   text: string;
   details?: string[];
+}
+
+interface GitHubRegistryItem {
+  id: string;
+  name: string;
+  version?: string;
+  description?: string;
+  domain?: string;
+  configUrl: string;
+}
+
+interface GitHubRegistryIndex {
+  name?: string;
+  description?: string;
+  version?: string;
+  configs: GitHubRegistryItem[];
+}
+
+const GITHUB_REGISTRY_INDEX_URL =
+  'https://raw.githubusercontent.com/nigdanil/AuditM-Field/main/public/config-registry/index.json';
+
+function getPublicAssetUrl(path: string) {
+  const normalizedPath = path.replace(/^\/+/, '');
+
+  return `${import.meta.env.BASE_URL}${normalizedPath}`;
 }
 
 function getConfigStats(config: AuditConfig) {
@@ -60,6 +95,60 @@ function getSourceLabel(source: ConfigLoadSource) {
   }
 }
 
+function validateRegistryIndex(json: unknown): GitHubRegistryIndex {
+  if (!json || typeof json !== 'object') {
+    throw new Error('GitHub registry index must be an object.');
+  }
+
+  const registry = json as Partial<GitHubRegistryIndex>;
+
+  if (!Array.isArray(registry.configs)) {
+    throw new Error('GitHub registry index must contain configs array.');
+  }
+
+  const configs = registry.configs.map((item, index) => {
+    if (!item || typeof item !== 'object') {
+      throw new Error(`GitHub registry config #${index + 1} must be an object.`);
+    }
+
+    const config = item as Partial<GitHubRegistryItem>;
+
+    if (!config.id || !config.name || !config.configUrl) {
+      throw new Error(`GitHub registry config #${index + 1} must contain id, name and configUrl.`);
+    }
+
+    return {
+      id: String(config.id),
+      name: String(config.name),
+      version: config.version ? String(config.version) : undefined,
+      description: config.description ? String(config.description) : undefined,
+      domain: config.domain ? String(config.domain) : undefined,
+      configUrl: String(config.configUrl),
+    };
+  });
+
+  return {
+    name: registry.name ? String(registry.name) : undefined,
+    description: registry.description ? String(registry.description) : undefined,
+    version: registry.version ? String(registry.version) : undefined,
+    configs,
+  };
+}
+
+async function fetchJson(url: string) {
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${url}`);
+  }
+
+  return response.json();
+}
+
 export function ConfigManagerPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -68,6 +157,10 @@ export function ConfigManagerPage() {
     type: 'info',
     text: 'No active config loaded yet.',
   });
+  const [githubRegistry, setGithubRegistry] = useState<GitHubRegistryIndex | null>(null);
+  const [githubRegistryLoading, setGithubRegistryLoading] = useState(false);
+  const [githubRegistryError, setGithubRegistryError] = useState<string | null>(null);
+  const [loadingConfigUrl, setLoadingConfigUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const storedConfig = loadActiveConfig();
@@ -91,6 +184,89 @@ export function ConfigManagerPage() {
     });
   };
 
+  const loadConfigFromJson = (json: unknown, source: ConfigLoadSource) => {
+    const validationResult = validateAuditConfig(json);
+
+    if (!validationResult.ok) {
+      setStatusMessage({
+        type: 'error',
+        text: validationResult.message,
+        details: validationResult.issues,
+      });
+      return;
+    }
+
+    applyConfig(validationResult.config, source);
+  };
+
+  const loadGitHubRegistry = async () => {
+    try {
+      setGithubRegistryLoading(true);
+      setGithubRegistryError(null);
+
+      let json: unknown;
+      let loadedFrom: 'github' | 'local-fallback' = 'github';
+      let githubErrorMessage: string | null = null;
+
+      try {
+        json = await fetchJson(GITHUB_REGISTRY_INDEX_URL);
+      } catch (githubError) {
+        loadedFrom = 'local-fallback';
+        githubErrorMessage =
+          githubError instanceof Error ? githubError.message : 'GitHub registry is not available';
+
+        json = await fetchJson(getPublicAssetUrl('config-registry/index.json'));
+      }
+
+      const registry = validateRegistryIndex(json);
+
+      setGithubRegistry(registry);
+      setStatusMessage({
+        type: 'info',
+        text:
+          loadedFrom === 'github'
+            ? `GitHub registry loaded: ${registry.configs.length} config(s) available.`
+            : `Local registry fallback loaded: ${registry.configs.length} config(s) available. GitHub raw is not available yet: ${githubErrorMessage}`,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load GitHub registry';
+
+      setGithubRegistry(null);
+      setGithubRegistryError(message);
+      setStatusMessage({
+        type: 'error',
+        text: message,
+      });
+    } finally {
+      setGithubRegistryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadGitHubRegistry();
+  }, []);
+
+  const loadGitHubConfig = async (registryItem: GitHubRegistryItem) => {
+    try {
+      setLoadingConfigUrl(registryItem.configUrl);
+      setStatusMessage({
+        type: 'info',
+        text: `Loading GitHub config: ${registryItem.name}...`,
+      });
+
+      const json = await fetchJson(registryItem.configUrl);
+
+      loadConfigFromJson(json, 'github');
+    } catch (error) {
+      setStatusMessage({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'Failed to load GitHub config',
+      });
+    } finally {
+      setLoadingConfigUrl(null);
+    }
+  };
+
   const loadDemoConfig = async () => {
     try {
       setStatusMessage({
@@ -98,25 +274,9 @@ export function ConfigManagerPage() {
         text: 'Loading demo config...',
       });
 
-      const response = await fetch('/demo-configs/retail-shelf-audit.config.json');
+      const json = await fetchJson(getPublicAssetUrl('demo-configs/retail-shelf-audit.config.json'));
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const json = await response.json();
-      const validationResult = validateAuditConfig(json);
-
-      if (!validationResult.ok) {
-        setStatusMessage({
-          type: 'error',
-          text: validationResult.message,
-          details: validationResult.issues,
-        });
-        return;
-      }
-
-      applyConfig(validationResult.config, 'demo');
+      loadConfigFromJson(json, 'demo');
     } catch (error) {
       setStatusMessage({
         type: 'error',
@@ -135,18 +295,8 @@ export function ConfigManagerPage() {
     try {
       const text = await file.text();
       const json = JSON.parse(text);
-      const validationResult = validateAuditConfig(json);
 
-      if (!validationResult.ok) {
-        setStatusMessage({
-          type: 'error',
-          text: validationResult.message,
-          details: validationResult.issues,
-        });
-        return;
-      }
-
-      applyConfig(validationResult.config, 'local-file');
+      loadConfigFromJson(json, 'local-file');
     } catch (error) {
       setStatusMessage({
         type: 'error',
@@ -174,7 +324,7 @@ export function ConfigManagerPage() {
       <div>
         <h1 className="text-3xl font-semibold">Config Manager</h1>
         <p className="mt-2 text-slate-400">
-          Load audit configurations from GitHub registry, local JSON files, or direct URLs.
+          Load audit configurations from GitHub registry, local JSON files, or built-in demo files.
         </p>
       </div>
 
@@ -207,25 +357,96 @@ export function ConfigManagerPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-3">
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
           <div className="mb-4 inline-flex rounded-xl bg-slate-800 p-3">
-            <FileJson size={22} />
+            <GitBranch size={22} />
           </div>
 
-          <h2 className="text-lg font-semibold">GitHub registry</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-400">
-            Later this screen will load index.json and show available audit configs from a GitHub
-            config registry.
-          </p>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold">GitHub registry</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-400">
+                Load config registry index from GitHub and select one of the available audit
+                configs.
+              </p>
+            </div>
 
-          <button
-            type="button"
-            disabled
-            className="mt-5 rounded-xl bg-slate-800 px-4 py-2 text-sm text-slate-500"
-          >
-            Coming soon
-          </button>
+            <button
+              type="button"
+              onClick={loadGitHubRegistry}
+              disabled={githubRegistryLoading}
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-800 px-3 py-2 text-xs font-medium text-slate-200 transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <RefreshCw size={14} className={githubRegistryLoading ? 'animate-spin' : ''} />
+              Refresh
+            </button>
+          </div>
+
+          <div className="mt-4 rounded-xl border border-slate-800 bg-slate-950 p-3">
+            <div className="text-xs uppercase tracking-wide text-slate-500">Registry URL</div>
+            <div className="mt-2 break-all font-mono text-xs text-slate-400">
+              {GITHUB_REGISTRY_INDEX_URL}
+            </div>
+          </div>
+
+          {githubRegistryError ? (
+            <div className="mt-4 rounded-xl border border-red-900 bg-red-950/40 p-3 text-sm text-red-100">
+              {githubRegistryError}
+            </div>
+          ) : null}
+
+          {githubRegistry ? (
+            <div className="mt-4 space-y-3">
+              <div>
+                <div className="text-sm font-medium text-slate-200">
+                  {githubRegistry.name ?? 'GitHub registry'}
+                </div>
+                {githubRegistry.description ? (
+                  <div className="mt-1 text-xs leading-5 text-slate-500">
+                    {githubRegistry.description}
+                  </div>
+                ) : null}
+              </div>
+
+              {githubRegistry.configs.map((registryItem) => (
+                <div
+                  key={registryItem.id}
+                  className="rounded-xl border border-slate-800 bg-slate-950 p-4"
+                >
+                  <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                    <div>
+                      <div className="font-medium text-slate-100">{registryItem.name}</div>
+                      <div className="mt-1 font-mono text-xs text-slate-500">
+                        {registryItem.id}
+                        {registryItem.version ? ` · v${registryItem.version}` : ''}
+                        {registryItem.domain ? ` · ${registryItem.domain}` : ''}
+                      </div>
+                      {registryItem.description ? (
+                        <p className="mt-2 text-sm leading-5 text-slate-400">
+                          {registryItem.description}
+                        </p>
+                      ) : null}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => loadGitHubConfig(registryItem)}
+                      disabled={loadingConfigUrl === registryItem.configUrl}
+                      className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-slate-100 px-4 py-2 text-sm font-medium text-slate-950 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <DownloadCloud size={16} />
+                      {loadingConfigUrl === registryItem.configUrl ? 'Loading...' : 'Load'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-4 rounded-xl border border-dashed border-slate-700 bg-slate-950 p-4 text-sm text-slate-400">
+              {githubRegistryLoading ? 'Loading GitHub registry...' : 'Registry not loaded yet.'}
+            </div>
+          )}
         </div>
 
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
@@ -385,7 +606,7 @@ export function ConfigManagerPage() {
           <div className="mt-6 rounded-2xl border border-dashed border-slate-700 bg-slate-950 p-8 text-center">
             <h3 className="text-lg font-semibold">No active config</h3>
             <p className="mt-2 text-sm text-slate-400">
-              Load the demo config or upload a local config.json file.
+              Load a config from GitHub registry, demo config or local config.json file.
             </p>
           </div>
         )}
