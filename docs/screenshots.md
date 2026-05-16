@@ -1,6 +1,6 @@
 # Screenshots
 
-Recommended screenshots for README, GitHub and portfolio pages.
+Screenshots for README, GitHub, portfolio pages, and project presentation materials.
 
 Store screenshots in:
 
@@ -8,26 +8,20 @@ Store screenshots in:
 docs/assets/screenshots/
 ```
 
-Suggested files:
+## Current screenshots
 
-```text
-01-dashboard.png
-02-config-manager.png
-03-inspections-list.png
-04-inspection-detail.png
-05-photo-gallery.png
-06-photo-annotator.png
-07-dynamic-form.png
-08-export-center.png
-09-storage-adapters.png
-10-ai-suggestions-import.png
-11-ai-review.png
-12-settings.png
-```
+| File                       | Screen            | Purpose                                                                                              |
+| -------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------- |
+| `01-dashboard.png`         | Dashboard         | Main product overview: app name, navigation, positioning tags and feature cards.                     |
+| `02-config-manager.png`    | Config Manager    | Shows GitHub config registry, local JSON import, demo config loading and active config summary.      |
+| `03-inspections-list.png`  | Inspections       | Shows local inspection creation and stored inspections in IndexedDB.                                 |
+| `04-inspection-detail.png` | Inspection Detail | Reserved for inspection metadata, checklist and photo gallery screen.                                |
+| `05-annotator-entry.png`   | Annotator Entry   | Shows recent photos and entry point into the annotation workspace.                                   |
+| `06-photo-annotator.png`   | Photo Annotator   | Shows image annotation workspace, annotation panel, filters, AI review and dynamic form area.        |
+| `08-export-center.png`     | Export Center     | Shows ZIP pipeline, import/export, storage adapter, available inspections and export jobs.           |
+| `12-settings.png`          | Settings          | Shows storage, external transport, annotator entry point, local-first data and AI-ready layer notes. |
 
----
-
-## Screenshot checklist
+## Recommended screenshot checklist
 
 ### Dashboard
 
@@ -36,6 +30,7 @@ Show:
 ```text
 - app name
 - navigation
+- product positioning
 - overview cards
 ```
 
@@ -44,30 +39,31 @@ Show:
 Show:
 
 ```text
-- active config
+- GitHub config registry
 - demo config
-- validation status
+- active config
+- validation/summary counters
 ```
 
-### Inspections list
+### Inspections
 
 Show:
 
 ```text
-- inspections
+- new inspection form
+- local inspections
 - statuses
-- create/open actions
+- create/delete actions
 ```
 
-### Inspection detail
+### Annotator Entry
 
 Show:
 
 ```text
-- inspection metadata
-- inspection checklist
-- photo gallery
-- photo checklist
+- recent photos
+- inspection groups
+- open annotator action
 ```
 
 ### Photo Annotator
@@ -79,7 +75,8 @@ Show:
 - annotation panel
 - visible type filter
 - source filter
-- dynamic form
+- AI review block
+- dynamic form block
 ```
 
 ### Export Center
@@ -89,57 +86,59 @@ Show:
 ```text
 - ZIP pipeline
 - import package
+- AI suggestions import
 - storage adapter
 - available inspections
 - export jobs
 ```
 
-### AI suggestions import
+### Settings
 
 Show:
 
 ```text
-- Generate & import demo
-- Download demo JSON
-- Import AI suggestions
+- storage adapters
+- external transport
+- annotator entry point
+- AI-ready layer
+- local-first data
 ```
-
-### AI review
-
-Show:
-
-```text
-- Source filter
-- Pending AI
-- confidence
-- Accept / Reject
-- AI metadata
-- Clear pending AI suggestions
-```
-
----
 
 ## README image block
 
-After screenshots are available, add this to `README.md`:
+Recommended README block:
 
-```md
+
 ## Screenshots
 
-### Photo annotator
+### Dashboard
 
-![Photo annotator](docs/assets/screenshots/06-photo-annotator.png)
+![Dashboard](../docs/assets/screenshots/01-dashboard.png)
+
+### Config Manager
+
+![Config Manager](../docs/assets/screenshots/02-config-manager.png)
+
+### Inspections
+
+![Inspections](../docs/assets/screenshots/03-inspections-list.png)
+
+### Annotator Entry
+
+![Annotator Entry](../docs/assets/screenshots/05-annotator-entry.png)
+
+### Photo Annotator
+
+![Photo Annotator](../docs/assets/screenshots/06-photo-annotator.png)
 
 ### Export Center
 
-![Export Center](docs/assets/screenshots/08-export-center.png)
+![Export Center](../docs/assets/screenshots/08-export-center.png)
 
-### AI review
+### Settings
 
-![AI review](docs/assets/screenshots/11-ai-review.png)
-```
+![Settings](../docs/assets/screenshots/12-settings.png)
 
----
 
 ## Screenshot style
 
@@ -164,3 +163,4 @@ Avoid screenshots with:
 - real store names
 - real brand names if not allowed
 ```
+
