@@ -1,0 +1,28 @@
+{
+  "entry": {
+    "title": "Разметка",
+    "description": "Выбери фотографию из последних проверок и открой рабочую область разметки.",
+    "stats": {
+      "recentPhotos": "Последние фото",
+      "inspectionGroups": "Группы проверок",
+      "entryPoint": "Точка входа",
+      "entryPointDescription": "Эта страница заменяет старый demo photo route и убирает непонятное состояние Photo not found из основной навигации."
+    },
+    "empty": {
+      "title": "Фотографий пока нет",
+      "description": "Создай проверку, импортируй фотографии и вернись сюда для разметки.",
+      "action": "Открыть проверки"
+    },
+    "actions": {
+      "openAnnotator": "Открыть разметку",
+      "openInspection": "Открыть проверку"
+    },
+    "labels": {
+      "unknownInspection": "Неизвестная проверка",
+      "inspectionNotFound": "запись проверки не найдена",
+      "imported": "Импортировано: {{date}}",
+      "photoCount": "{{count}} фото",
+      "loadingPreview": "Загрузка превью..."
+    }
+  }
+}

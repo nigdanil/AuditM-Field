@@ -186,6 +186,75 @@ function formatAiMetadataValue(value: unknown): string {
   }
 }
 
+function hasInvalidAnnotationGeometryValue(value: unknown): boolean {
+  if (typeof value === 'number') {
+    return !Number.isFinite(value);
+  }
+
+  if (typeof value === 'string') {
+    return /(^|[^a-zA-Z])(NaN|Infinity|-Infinity)([^a-zA-Z]|$)/.test(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.some(hasInvalidAnnotationGeometryValue);
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.values(value).some(hasInvalidAnnotationGeometryValue);
+  }
+
+  return false;
+}
+
+function isRenderableRawAnnotation(rawAnnotation: unknown): boolean {
+  if (!rawAnnotation || typeof rawAnnotation !== 'object') {
+    return false;
+  }
+
+  return !hasInvalidAnnotationGeometryValue(rawAnnotation);
+}
+
+type RawAnnotationObject = Record<string, unknown>;
+
+function normalizeRawAnnotationTargetForImage(target: unknown, imageSource: string): unknown {
+  if (Array.isArray(target)) {
+    return target.map((item) => normalizeRawAnnotationTargetForImage(item, imageSource));
+  }
+
+  if (target && typeof target === 'object') {
+    return {
+      ...(target as RawAnnotationObject),
+      source: imageSource,
+    };
+  }
+
+  return target;
+}
+
+function normalizeRawAnnotationForImage(
+  rawAnnotation: unknown,
+  imageSource: string,
+  annotationId: string,
+): unknown {
+  if (!rawAnnotation || typeof rawAnnotation !== 'object') {
+    return rawAnnotation;
+  }
+
+  const normalizedAnnotation: RawAnnotationObject = {
+    ...(rawAnnotation as RawAnnotationObject),
+    id: annotationId,
+  };
+
+  if ('target' in normalizedAnnotation) {
+    normalizedAnnotation.target = normalizeRawAnnotationTargetForImage(
+      normalizedAnnotation.target,
+      imageSource,
+    );
+  }
+
+  return normalizedAnnotation;
+}
+
 function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
   const annotator = useAnnotator();
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
@@ -200,9 +269,11 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
     () => listAnnotationsByPhoto(photo.id),
     [photo.id],
     [],
-  );
+  );
+  
   const annotationRecordsRef = useRef<ImageAnnotationRecord[]>(annotationRecords);
   const selectedAnnotationIdRef = useRef<string | null>(selectedAnnotationId);
+  const renderedAnnotationIdsRef = useRef<Set<string>>(new Set());
   const [visibleAnnotationTypeIds, setVisibleAnnotationTypeIds] = useState<string[]>([]);
 
   const annotationTypes = useMemo(() => {
@@ -332,6 +403,10 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
   };
 
   const getRawAnnotationId = (annotation: unknown): string | null => {
+    if (typeof annotation === 'string') {
+      return annotation;
+    }
+
     if (!annotation || typeof annotation !== 'object') {
       return null;
     }
@@ -342,7 +417,7 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
   };
 
   const flushSelectedAnnotationGeometry = useCallback(async () => {
-    if (!annotator) {
+    if (!annotator || !objectUrl) {
       return undefined;
     }
 
@@ -354,11 +429,36 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
       return undefined;
     }
 
+    if (!isRenderableRawAnnotation(selectedAnnotoriousAnnotation)) {
+      return undefined;
+    }
+
+    
+    const storedAnnotation = annotationRecordsRef.current.find(
+      (record) => record.id === annotationId,
+    );
+
+    const storedRawAnnotationForCurrentImage = storedAnnotation
+      ? normalizeRawAnnotationForImage(
+          storedAnnotation.rawAnnotation,
+          objectUrl,
+          storedAnnotation.id,
+        )
+      : null;
+
+    if (
+      storedRawAnnotationForCurrentImage &&
+      stringifyRawAnnotation(storedRawAnnotationForCurrentImage) ===
+        stringifyRawAnnotation(selectedAnnotoriousAnnotation)
+    ) {
+      return undefined;
+    }
+
     return updateAnnotationRawPayload({
       id: annotationId,
       rawAnnotation: selectedAnnotoriousAnnotation,
     });
-  }, [annotator]);
+  }, [annotator, objectUrl]);
 
   const annotationStyle = (
     annotation: ImageAnnotation,
@@ -397,6 +497,10 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
       return true;
     }
 
+    if (annotationSourceFilter === 'pending_ai') {
+      return isPendingAiAnnotation(annotationRecord);
+    }
+
     return annotationRecord.source === annotationSourceFilter;
   };
 
@@ -418,21 +522,41 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
       URL.revokeObjectURL(nextObjectUrl);
     };
   }, [photo.blob]);
-
   useEffect(() => {
-    if (!annotator) {
+    if (!annotator || !objectUrl) {
+      renderedAnnotationIdsRef.current = new Set();
       return;
     }
 
-    const rawAnnotations = annotationRecordsRef.current.map(
-      (record) => record.rawAnnotation as Partial<unknown>,
-    );
+    const animationFrameId = window.requestAnimationFrame(() => {
+      const renderableAnnotationRecords = annotationRecordsRef.current
+        .map((record) => ({
+          record,
+          rawAnnotation: normalizeRawAnnotationForImage(record.rawAnnotation, objectUrl, record.id),
+        }))
+        .filter(({ rawAnnotation }) => isRenderableRawAnnotation(rawAnnotation));
 
-    annotator.setAnnotations(rawAnnotations, true);
-  }, [annotator, rawAnnotationRevision]);
+      renderedAnnotationIdsRef.current = new Set(
+        renderableAnnotationRecords.map(({ record }) => record.id),
+      );
 
+      const rawAnnotations = renderableAnnotationRecords.map(
+        ({ rawAnnotation }) => rawAnnotation as Partial<unknown>,
+      );
+
+      annotator.setAnnotations(rawAnnotations, true);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(animationFrameId);
+    };
+  }, [annotator, objectUrl, rawAnnotationRevision]);
   useEffect(() => {
     if (!annotator || !selectedAnnotationId) {
+      return;
+    }
+
+    if (!renderedAnnotationIdsRef.current.has(selectedAnnotationId)) {
       return;
     }
 
@@ -444,7 +568,6 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
       window.clearTimeout(timeoutId);
     };
   }, [annotator, rawAnnotationRevision, selectedAnnotationId]);
-
   useEffect(() => {
     if (!annotator) {
       return;
@@ -453,7 +576,7 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
     const handlePointerUp = () => {
       window.setTimeout(() => {
         void flushSelectedAnnotationGeometry();
-      }, 50);
+      }, 150);
     };
 
     window.addEventListener('pointerup', handlePointerUp);
@@ -466,6 +589,26 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
       window.removeEventListener('touchend', handlePointerUp);
     };
   }, [annotator, flushSelectedAnnotationGeometry]);
+  useEffect(() => {
+    if (!annotator) {
+      return;
+    }
+
+    const handleSelectionChanged = (annotations: unknown[]) => {
+      const selectedAnnotoriousAnnotation = annotations[0] ?? null;
+      const annotationId = getRawAnnotationId(selectedAnnotoriousAnnotation);
+
+      selectedAnnotationIdRef.current = annotationId;
+      setSelectedAnnotationId(annotationId);
+    };
+
+    annotator.on('selectionChanged', handleSelectionChanged);
+
+    return () => {
+      annotator.off('selectionChanged', handleSelectionChanged);
+    };
+  }, [annotator]);
+
 
   useEffect(() => {
     if (!annotator) {
@@ -473,6 +616,11 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
     }
 
     const handleCreateAnnotation = async (annotation: unknown) => {
+      if (!isRenderableRawAnnotation(annotation)) {
+        setStatusMessage('Annotation was not saved: invalid geometry. Try drawing it again.');
+        return;
+      }
+
       const savedAnnotation = await upsertAnnotationFromAnnotorious({
         photoId: photo.id,
         inspectionId: photo.inspectionId,
@@ -481,11 +629,19 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
         rawAnnotation: annotation,
       });
 
+      selectedAnnotationIdRef.current = savedAnnotation.id;
+
+
       setSelectedAnnotationId(savedAnnotation.id);
       setStatusMessage(`Annotation saved as ${effectiveAnnotationType.label}. Fill the form below.`);
     };
 
     const handleUpdateAnnotation = async (annotation: unknown) => {
+      if (!isRenderableRawAnnotation(annotation)) {
+        setStatusMessage('Annotation geometry update was ignored: invalid geometry.');
+        return;
+      }
+
       const annotationId = getRawAnnotationId(annotation) ?? selectedAnnotationIdRef.current ?? undefined;
       const updatedAnnotation = await updateAnnotationRawPayload({
         id: annotationId,
@@ -496,6 +652,9 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
         setStatusMessage('Annotation geometry update was not saved. Select the annotation and try again.');
         return;
       }
+
+      selectedAnnotationIdRef.current = updatedAnnotation.id;
+
 
       setSelectedAnnotationId(updatedAnnotation.id);
       setStatusMessage('Annotation geometry updated.');
@@ -524,8 +683,14 @@ function PhotoAnnotationWorkspace({ photo }: { photo: PhotoRecord }) {
   }, [annotator, effectiveAnnotationType, photo.id, photo.inspectionId]);
 
   const handleSelectAnnotation = (annotationId: string) => {
+    selectedAnnotationIdRef.current = annotationId;
     setSelectedAnnotationId(annotationId);
-    annotator?.setSelected(annotationId, true);
+
+    if (!annotator || !renderedAnnotationIdsRef.current.has(annotationId)) {
+      return;
+    }
+
+    annotator.setSelected(annotationId, true);
   };
 
   const handleDeleteAnnotationFromPanel = async (annotationId: string) => {

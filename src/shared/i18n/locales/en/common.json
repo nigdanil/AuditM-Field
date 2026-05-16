@@ -1,0 +1,19 @@
+{
+  "app": {
+    "name": "AuditM-Field",
+    "subtitle": "Configurable PWA for field photo audits and image annotation"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "configs": "Configs",
+    "inspections": "Inspections",
+    "annotator": "Annotator",
+    "export": "Export",
+    "settings": "Settings"
+  },
+  "language": {
+    "label": "Language",
+    "en": "EN",
+    "ru": "RU"
+  }
+}

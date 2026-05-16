@@ -1,0 +1,19 @@
+{
+  "app": {
+    "name": "AuditM-Field",
+    "subtitle": "Настраиваемая PWA для полевых фотоаудитов и разметки изображений"
+  },
+  "nav": {
+    "dashboard": "Панель",
+    "configs": "Конфиги",
+    "inspections": "Проверки",
+    "annotator": "Разметка",
+    "export": "Экспорт",
+    "settings": "Настройки"
+  },
+  "language": {
+    "label": "Язык",
+    "en": "EN",
+    "ru": "RU"
+  }
+}

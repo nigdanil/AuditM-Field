@@ -1,0 +1,33 @@
+{
+  "title": "Настройки",
+  "description": "Настройки приложения, источники конфигов, storage-адаптеры и экспериментальные AI-функции.",
+  "actions": {
+    "openExportCenter": "Открыть Export Center"
+  },
+  "cards": {
+    "storageAdapters": {
+      "title": "Storage-адаптеры",
+      "description": "Local download, HTTP upload и webhook-адаптеры настраиваются в Export Center. Это держит доставку данных рядом с ZIP export/import workflow."
+    },
+    "externalTransport": {
+      "title": "Внешний транспорт",
+      "description": "Рекомендуемый путь интеграции: AuditM-Field экспортирует ZIP-пакет и отправляет его в backend, webhook или n8n workflow. AI/OCR/LLM-обработка должна жить за этим транспортным слоем, а не напрямую внутри PWA."
+    },
+    "annotatorEntry": {
+      "title": "Точка входа в разметку",
+      "description": "Страница Annotator сейчас открывает конкретный route фотографии. Если открыть её без выбранного фото, появляется Photo not found. Позже это можно улучшить до выбора фото / экрана недавних фотографий."
+    },
+    "aiReadyLayer": {
+      "title": "AI-ready слой",
+      "description": "OCR, CV, LLM и RAG-интеграции должны быть опциональными адаптерами. PWA должна разделять данные, введённые человеком, и импортированные/AI-сгенерированные подсказки по источнику."
+    },
+    "localFirstData": {
+      "title": "Local-first данные",
+      "description": "Проверки, фотографии, аннотации, ответы чек-листов и export jobs хранятся в IndexedDB. ZIP export/import — основной механизм переносимости для MVP."
+    },
+    "nextSettingsCandidates": {
+      "title": "Следующие кандидаты настроек",
+      "description": "Позже на этой странице можно разместить default config source, пресеты storage-адаптеров, очистку import/export, индикатор размера локальной БД и экспериментальные feature toggles."
+    }
+  }
+}

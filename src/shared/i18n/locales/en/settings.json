@@ -1,0 +1,33 @@
+{
+  "title": "Settings",
+  "description": "Application settings, config sources, storage adapters, and experimental AI features.",
+  "actions": {
+    "openExportCenter": "Open Export Center"
+  },
+  "cards": {
+    "storageAdapters": {
+      "title": "Storage adapters",
+      "description": "Local download, HTTP upload and webhook adapters are configured in Export Center. This keeps storage delivery close to ZIP export/import workflow."
+    },
+    "externalTransport": {
+      "title": "External transport",
+      "description": "Recommended integration path: AuditM-Field exports a ZIP package, then sends it to a backend, webhook or n8n workflow. AI/OCR/LLM processing should live behind that transport layer, not directly inside the PWA."
+    },
+    "annotatorEntry": {
+      "title": "Annotator entry point",
+      "description": "The Annotator page currently opens a concrete photo route. If opened without a selected photo, it shows Photo not found. A future UX polish step can turn it into a photo picker / recent photos screen."
+    },
+    "aiReadyLayer": {
+      "title": "AI-ready layer",
+      "description": "OCR, CV, LLM and RAG integrations should be optional adapters. The PWA should keep human-entered data and imported/AI-generated suggestions separated by source."
+    },
+    "localFirstData": {
+      "title": "Local-first data",
+      "description": "Inspections, photos, annotations, checklist answers and export jobs are stored in IndexedDB. ZIP export/import is the main portability mechanism for MVP."
+    },
+    "nextSettingsCandidates": {
+      "title": "Next settings candidates",
+      "description": "Later this page can host default config source, storage adapter presets, import/export cleanup actions, local database size indicator and experimental feature toggles."
+    }
+  }
+}

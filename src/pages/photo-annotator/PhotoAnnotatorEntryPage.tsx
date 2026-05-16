@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ArrowRight, ClipboardCheck, ImagePlus } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
-import { inspectionStatusLabels } from '../../entities/inspection/model';
-import type { Inspection } from '../../entities/inspection/types';
+import type { Inspection, InspectionStatus } from '../../entities/inspection/types';
 import type { PhotoRecord } from '../../entities/photo/types';
 import { listInspections } from '../../services/db/inspectionRepository';
 import { listRecentPhotos } from '../../services/db/photoRepository';
@@ -28,6 +28,7 @@ function formatDate(value: string): string {
 }
 
 function PhotoThumbnail({ photo }: { photo: PhotoRecord }) {
+  const { t } = useTranslation('annotator');
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -50,7 +51,7 @@ function PhotoThumbnail({ photo }: { photo: PhotoRecord }) {
         />
       ) : (
         <div className="flex h-44 items-center justify-center text-sm text-slate-500">
-          Loading preview...
+          {t('entry.labels.loadingPreview')}
         </div>
       )}
     </div>
@@ -58,6 +59,8 @@ function PhotoThumbnail({ photo }: { photo: PhotoRecord }) {
 }
 
 function PhotoCard({ photo }: { photo: PhotoRecord }) {
+  const { t } = useTranslation('annotator');
+
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900 p-3">
       <PhotoThumbnail photo={photo} />
@@ -80,13 +83,15 @@ function PhotoCard({ photo }: { photo: PhotoRecord }) {
           ) : null}
         </div>
 
-        <div className="text-xs text-slate-600">Imported: {formatDate(photo.createdAt)}</div>
+        <div className="text-xs text-slate-600">
+          {t('entry.labels.imported', { date: formatDate(photo.createdAt) })}
+        </div>
 
         <Link
           to={`/photos/${photo.id}/annotate`}
           className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-100 px-4 py-3 text-sm font-medium text-slate-950 transition hover:bg-white"
         >
-          Open annotator
+          {t('entry.actions.openAnnotator')}
           <ArrowRight size={15} />
         </Link>
       </div>
@@ -104,6 +109,8 @@ function groupPhotosByInspection(photos: PhotoRecord[]): Record<string, PhotoRec
 }
 
 export function PhotoAnnotatorEntryPage() {
+  const { t } = useTranslation('annotator');
+
   const photos = useLiveQuery(() => listRecentPhotos(60), [], []);
   const inspections = useLiveQuery(() => listInspections(), [], []);
 
@@ -117,28 +124,31 @@ export function PhotoAnnotatorEntryPage() {
   return (
     <section className="space-y-6">
       <div>
-        <h1 className="text-3xl font-semibold">Annotator</h1>
-        <p className="mt-2 text-slate-400">
-          Select a photo from recent inspections and open the image annotation workspace.
-        </p>
+        <h1 className="text-3xl font-semibold">{t('entry.title')}</h1>
+        <p className="mt-2 text-slate-400">{t('entry.description')}</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-          <div className="text-xs uppercase tracking-wide text-slate-500">Recent photos</div>
+          <div className="text-xs uppercase tracking-wide text-slate-500">
+            {t('entry.stats.recentPhotos')}
+          </div>
           <div className="mt-2 text-3xl font-semibold">{photos.length}</div>
         </div>
 
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-          <div className="text-xs uppercase tracking-wide text-slate-500">Inspection groups</div>
+          <div className="text-xs uppercase tracking-wide text-slate-500">
+            {t('entry.stats.inspectionGroups')}
+          </div>
           <div className="mt-2 text-3xl font-semibold">{inspectionGroups.length}</div>
         </div>
 
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-          <div className="text-xs uppercase tracking-wide text-slate-500">Entry point</div>
+          <div className="text-xs uppercase tracking-wide text-slate-500">
+            {t('entry.stats.entryPoint')}
+          </div>
           <div className="mt-2 text-sm leading-6 text-slate-400">
-            This page replaces the old demo photo route and prevents the confusing Photo not found
-            state from the main navigation.
+            {t('entry.stats.entryPointDescription')}
           </div>
         </div>
       </div>
@@ -148,16 +158,14 @@ export function PhotoAnnotatorEntryPage() {
           <div className="mx-auto mb-4 inline-flex rounded-xl bg-slate-800 p-3">
             <ImagePlus size={24} />
           </div>
-          <h2 className="text-xl font-semibold">No photos yet</h2>
-          <p className="mt-2 text-sm text-slate-400">
-            Create an inspection, import photos, and return here to start annotation.
-          </p>
+          <h2 className="text-xl font-semibold">{t('entry.empty.title')}</h2>
+          <p className="mt-2 text-sm text-slate-400">{t('entry.empty.description')}</p>
 
           <Link
             to="/inspections"
             className="mt-5 inline-flex rounded-xl bg-slate-100 px-4 py-3 text-sm font-medium text-slate-950 transition hover:bg-white"
           >
-            Open inspections
+            {t('entry.empty.action')}
           </Link>
         </div>
       ) : (
@@ -189,6 +197,19 @@ function InspectionPhotoGroup({
   inspection?: Inspection;
   photos: PhotoRecord[];
 }) {
+  const { t } = useTranslation('annotator');
+  const { t: tInspections } = useTranslation('inspections');
+
+  const inspectionStatusLabels: Record<InspectionStatus, string> = {
+    DRAFT: tInspections('status.DRAFT'),
+    READY: tInspections('status.READY'),
+    EXPORTED: tInspections('status.EXPORTED'),
+    ARCHIVED: tInspections('status.ARCHIVED'),
+    SYNC_PENDING: tInspections('status.SYNC_PENDING'),
+    SYNCED: tInspections('status.SYNCED'),
+    SYNC_FAILED: tInspections('status.SYNC_FAILED'),
+  };
+
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-950 p-5">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -198,7 +219,9 @@ function InspectionPhotoGroup({
           </div>
 
           <div>
-            <h2 className="text-xl font-semibold">{inspection?.title ?? 'Unknown inspection'}</h2>
+            <h2 className="text-xl font-semibold">
+              {inspection?.title ?? t('entry.labels.unknownInspection')}
+            </h2>
             <div className="mt-1 font-mono text-xs text-slate-500">{inspectionId}</div>
 
             <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
@@ -221,12 +244,12 @@ function InspectionPhotoGroup({
                 </>
               ) : (
                 <span className="rounded-full bg-amber-950 px-3 py-1 text-amber-100">
-                  inspection record not found
+                  {t('entry.labels.inspectionNotFound')}
                 </span>
               )}
 
               <span className="rounded-full bg-slate-900 px-3 py-1">
-                {photos.length} photos
+                {t('entry.labels.photoCount', { count: photos.length })}
               </span>
             </div>
           </div>
@@ -237,7 +260,7 @@ function InspectionPhotoGroup({
             to={`/inspections/${inspection.id}`}
             className="inline-flex items-center justify-center rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm font-medium text-slate-100 transition hover:bg-slate-800"
           >
-            Open inspection
+            {t('entry.actions.openInspection')}
           </Link>
         ) : null}
       </div>

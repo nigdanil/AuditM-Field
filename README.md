@@ -1,16 +1,11 @@
 # AuditM-Field
 
-**AuditM-Field** is an open-source configurable offline-first PWA for field photo audits, image annotation, dynamic checklists, ZIP export/import, external transport workflows, and AI suggestion review.
+**AuditM-Field** is an open-source configurable offline-first PWA for field photo audits, image annotation, dynamic checklists, ZIP export/import, external transport workflows, localization, and AI suggestion review.
 
-The main idea: the app is not hardcoded for one business process. Audit configuration is loaded from JSON, while the PWA acts as a reusable frontend core.
+The main idea: the app is not hardcoded for one business process. Audit configuration is loaded from JSON, while the PWA acts as a reusable frontend core for different audit scenarios.
 
 ```text
-Config-first
-+ Gallery-first
-+ Offline-first
-+ Frontend-first
-+ Adapter-based
-+ AI-ready
+Config-first + Gallery-first + Offline-first + Frontend-first + Adapter-based + AI-ready + i18n-ready
 ```
 
 ---
@@ -19,32 +14,34 @@ Config-first
 
 AuditM-Field helps users:
 
-- create local field inspections;
-- import photos from gallery;
-- annotate image areas;
-- fill dynamic forms from JSON config;
-- store data locally in IndexedDB;
-- export inspections as self-contained ZIP packages;
-- import ZIP packages back into local storage;
-- send packages to external HTTP/Webhook/n8n workflows;
-- import AI-generated annotation suggestions;
-- review AI suggestions manually before accepting or rejecting them.
+* create local field inspections;
+* import photos from gallery;
+* annotate image areas;
+* assign annotation types and colors from JSON config;
+* fill dynamic forms from JSON config;
+* store inspections, photos, annotations and form answers locally in IndexedDB;
+* export inspections as self-contained ZIP packages;
+* import ZIP packages back into local storage;
+* send packages to external HTTP/Webhook/n8n workflows;
+* import AI-generated annotation suggestions;
+* review AI suggestions manually before accepting or rejecting them;
+* switch UI language between English and Russian.
 
 ---
 
 ## Use cases
 
-AuditM-Field is not retail-only. It can be configured for many scenarios:
+AuditM-Field is not retail-only. It can be configured for many visual audit scenarios.
 
-| Area | Example |
-| --- | --- |
-| Retail | shelf audits, price tags, POS materials |
-| Warehouse | pallet inspection, storage zones, damaged goods |
-| Manufacturing | equipment checks, defects, labels |
-| Field service | repair reports, photo evidence |
-| Construction | work stage control, issue tracking |
-| Agriculture | field, plant, machinery inspection |
-| Safety | risks, violations, incidents |
+| Area          | Example                                                              |
+| ------------- | -------------------------------------------------------------------- |
+| Retail / FMCG | shelf audits, price tags, POS materials, competitors, share of shelf |
+| Warehouse     | pallet inspection, storage zones, damaged goods                      |
+| Manufacturing | equipment checks, defects, labels, marking                           |
+| Field service | repair reports, before/after photo evidence                          |
+| Construction  | work stage control, defects, issue tracking                          |
+| Agriculture   | field, plant, machinery inspection                                   |
+| Safety        | risks, violations, incidents, checklists                             |
 
 ---
 
@@ -56,7 +53,7 @@ Load audit config
   -> Import photos from gallery
   -> Annotate image zones
   -> Fill dynamic checklists
-  -> Save locally
+  -> Save locally in IndexedDB
   -> Export ZIP / upload to backend or n8n
   -> Import AI suggestions
   -> Human review
@@ -70,14 +67,14 @@ Load audit config
 
 Audit scenarios are defined by JSON config:
 
-- photo types;
-- annotation types;
-- colors;
-- dictionaries;
-- inspection-level forms;
-- photo-level forms;
-- annotation-level forms;
-- export settings.
+* photo types;
+* annotation types;
+* annotation colors;
+* dictionaries;
+* inspection-level forms;
+* photo-level forms;
+* annotation-level forms;
+* export settings.
 
 The same frontend can support different domains without changing application code.
 
@@ -85,36 +82,66 @@ The same frontend can support different domains without changing application cod
 
 The app stores working data locally in the browser:
 
-- inspections;
-- photos;
-- annotations;
-- checklist attributes;
-- export jobs;
-- storage adapter settings.
+* inspections;
+* photos;
+* annotations;
+* checklist attributes;
+* export jobs;
+* storage adapter settings.
 
 ### Image annotation
 
-The annotator supports:
+The photo annotator supports:
 
-- rectangular image annotations;
-- annotation type selection;
-- colored annotation styles;
-- type filtering;
-- source filtering;
-- dynamic forms per annotation.
+* rectangular image annotations;
+* annotation type selection;
+* colored annotation styles;
+* visible type filtering;
+* annotation source filtering;
+* source separation: `human`, `ai`, `imported`;
+* pending AI suggestion filtering;
+* dynamic annotation forms;
+* AI metadata display;
+* accept/reject workflow for AI suggestions.
+
+Recent stability improvements:
+
+* annotations are rendered again after navigation between pages;
+* saved annotations are restored after page reload;
+* annotation `target.source` is normalized for the current `blob:` image URL;
+* unchanged annotation geometry is not re-saved to IndexedDB;
+* selected annotation state is synchronized between Annotorious and React state;
+* after page reload, saved annotation can be selected with one click.
 
 ### Dynamic forms
 
 Forms are generated from JSON config and support:
 
-- text;
-- textarea;
-- number;
-- select;
-- multiselect;
-- boolean;
-- radio;
-- date.
+* text;
+* textarea;
+* number;
+* select;
+* multiselect;
+* boolean;
+* radio;
+* date.
+
+### Localization
+
+The app now includes an i18n layer based on:
+
+* `i18next`;
+* `react-i18next`;
+* local JSON translation files;
+* language switcher in the header;
+* gradual localization support for existing UI through `LegacyUiLocalizer`.
+
+Current languages:
+
+* English;
+* Russian.
+
+The localization is compatible with offline-first usage because translation resources are bundled with the app.
 
 ### ZIP export/import
 
@@ -134,12 +161,12 @@ The ZIP can be imported back into the app.
 
 Supported delivery options:
 
-- local browser download;
-- HTTP upload;
-- Webhook upload;
-- mock upload server for local testing.
+* local browser download;
+* HTTP upload;
+* Webhook upload;
+* mock upload server for local testing.
 
-The HTTP/Webhook contract is designed for n8n or backend integration.
+The HTTP/Webhook contract is designed for backend or n8n integration.
 
 ### AI-ready workflow
 
@@ -165,30 +192,31 @@ source: ai
 
 Users can:
 
-- review pending AI suggestions;
-- accept AI suggestions as human-reviewed annotations;
-- reject AI suggestions;
-- clear pending suggestions;
-- inspect AI metadata.
+* review pending AI suggestions;
+* accept AI suggestions as human-reviewed annotations;
+* reject AI suggestions;
+* clear pending suggestions;
+* inspect AI metadata.
 
 ---
 
 ## Tech stack
 
-| Area | Technology |
-| --- | --- |
-| Frontend | React |
-| Language | TypeScript |
-| Build | Vite |
-| PWA | vite-plugin-pwa |
-| Styling | Tailwind CSS |
-| Local DB | Dexie / IndexedDB |
-| Annotation | Annotorious |
-| Forms | React Hook Form |
-| Validation | Zod |
-| Export | JSZip |
-| Icons | lucide-react |
-| Tests | Vitest / Testing Library |
+| Area       | Technology               |
+| ---------- | ------------------------ |
+| Frontend   | React                    |
+| Language   | TypeScript               |
+| Build      | Vite                     |
+| PWA        | vite-plugin-pwa          |
+| Styling    | Tailwind CSS             |
+| Local DB   | Dexie / IndexedDB        |
+| Annotation | Annotorious              |
+| Forms      | React Hook Form          |
+| Validation | Zod                      |
+| Export     | JSZip                    |
+| i18n       | i18next / react-i18next  |
+| Icons      | lucide-react             |
+| Tests      | Vitest / Testing Library |
 
 ---
 
@@ -198,12 +226,6 @@ GitHub Pages demo:
 
 ```text
 https://nigdanil.github.io/AuditM-Field/
-```
-
-Deployment guide:
-
-```text
-docs/github-pages.md
 ```
 
 ---
@@ -244,124 +266,72 @@ npm run preview
 
 ---
 
-## Mock upload server
-
-AuditM-Field includes a local mock server for testing HTTP/Webhook upload without a real backend.
-
-```bash
-npm run mock:upload
-```
-
-Default endpoint:
+## Repository structure
 
 ```text
-http://localhost:8787/upload
-```
+src/
+  app/                  routes
+  core/                 config schema, validation, config storage
+  entities/             domain models: inspection, photo, annotation, export job
+  features/             feature-level UI and workflows
+  pages/                route pages
+  services/             IndexedDB repositories, export/import, storage adapters
+  shared/               i18n, common utilities, shared UI
+  widgets/              app layout, header, offline banner
 
-Use it in:
+public/
+  config-registry/      config registry index
+  demo-configs/         demo audit configs
+  demo-transport/       AI suggestions and n8n/webhook examples
+  icons/                PWA icons
 
-```text
-Export Center -> Storage adapter -> HTTP upload URL
-```
-
----
-
-## Demo flow
-
-See:
-
-```text
-docs/demo-flow.md
-```
-
-Short version:
-
-```text
-1. Open Configs.
-2. Load Retail Shelf Audit demo config.
-3. Create inspection.
-4. Import a photo.
-5. Fill inspection/photo checklists.
-6. Open Annotator.
-7. Draw annotations.
-8. Fill annotation form.
-9. Export ZIP.
-10. Import ZIP back.
-11. Test HTTP upload with mock server.
-12. Generate and review AI suggestions.
+docs/
+  project documentation and release notes
 ```
 
 ---
 
 ## Documentation
 
-| Document | Purpose |
-| --- | --- |
-| `ROADMAP.md` | MVP roadmap and status |
-| `ARCHITECTURE.md` | Architecture overview |
-| `docs/demo-flow.md` | Step-by-step demo script |
-| `docs/configuration.md` | Audit config format |
-| `docs/config-registry.md` | GitHub config registry |
-| `docs/export-format.md` | ZIP export/import structure |
-| `docs/transport-contract.md` | HTTP/Webhook/n8n contract |
-| `docs/mock-upload-server.md` | Local mock server usage |
-| `docs/n8n-workflow-example.md` | n8n workflow example |
-| `docs/ai-suggestions-import.md` | AI suggestions import/review |
-| `docs/screenshots.md` | Suggested screenshots for README/portfolio |
+| Document                                                         | Purpose                                      |
+| ---------------------------------------------------------------- | -------------------------------------------- |
+| `ROADMAP.md`                                                     | MVP roadmap and status                       |
+| `docs/localization.md`                                           | i18n implementation and conventions          |
+| `docs/photo-annotator.md`                                        | Photo annotator behavior and stability notes |
+| `docs/release-notes/mvp-12-localization-annotation-stability.md` | Current release notes                        |
 
 ---
 
 ## Project status
 
-Current status:
+Current local status:
 
 ```text
-MVP-11.3 complete:
-AI suggestions import and human review workflow.
+MVP-12.1 complete: localization layer + stable photo annotation workflow.
 ```
+
+Main completed items:
+
+* RU/EN localization layer;
+* header language switcher;
+* localized dashboard, inspections, annotator entry and settings pages;
+* photo annotator rendering restored after navigation;
+* annotation selection stabilized after page reload;
+* one-click selection for saved annotations;
+* geometry save guard to avoid unnecessary IndexedDB updates;
+* AI suggestions review UI preserved.
 
 Next recommended stage:
 
 ```text
-MVP-12:
-Open-source readiness / docs polish.
-```
-
----
-
-## Repository structure
-
-```text
-src/
-  app/
-  core/
-  entities/
-  features/
-  pages/
-  services/
-  widgets/
-
-docs/
-  architecture and workflow documentation
-
-public/
-  demo configs and demo transport files
-
-tools/
-  local development utilities
+MVP-13: Open-source readiness, docs polish, screenshots, versioning and release automation.
 ```
 
 ---
 
 ## License
 
-This project is intended to be released as open-source.
-
-Recommended license:
-
-```text
-MIT
-```
+This project is released under the MIT License.
 
 See `LICENSE`.
 
@@ -373,8 +343,8 @@ AuditM-Field is a configurable frontend core for field photo audits and structur
 
 It can be used as:
 
-- a standalone local-first PWA;
-- a demo/portfolio project;
-- a frontend layer for corporate audit systems;
-- a data collection tool for AI/CV/OCR workflows;
-- a prototype base for external backend integrations.
+* a standalone local-first PWA;
+* a demo/portfolio project;
+* a frontend layer for corporate audit systems;
+* a data collection tool for AI/CV/OCR workflows;
+* a prototype base for backend, webhook or n8n integrations.

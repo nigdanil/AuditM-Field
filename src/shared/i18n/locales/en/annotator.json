@@ -1,0 +1,28 @@
+{
+  "entry": {
+    "title": "Annotator",
+    "description": "Select a photo from recent inspections and open the image annotation workspace.",
+    "stats": {
+      "recentPhotos": "Recent photos",
+      "inspectionGroups": "Inspection groups",
+      "entryPoint": "Entry point",
+      "entryPointDescription": "This page replaces the old demo photo route and prevents the confusing Photo not found state from the main navigation."
+    },
+    "empty": {
+      "title": "No photos yet",
+      "description": "Create an inspection, import photos, and return here to start annotation.",
+      "action": "Open inspections"
+    },
+    "actions": {
+      "openAnnotator": "Open annotator",
+      "openInspection": "Open inspection"
+    },
+    "labels": {
+      "unknownInspection": "Unknown inspection",
+      "inspectionNotFound": "inspection record not found",
+      "imported": "Imported: {{date}}",
+      "photoCount": "{{count}} photos",
+      "loadingPreview": "Loading preview..."
+    }
+  }
+}

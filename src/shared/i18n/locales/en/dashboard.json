@@ -1,0 +1,31 @@
+{
+  "hero": {
+    "eyebrow": "Open-source PWA",
+    "title": "AuditM-Field",
+    "description": "Configurable offline-first PWA for field photo audits, visual image annotation, dynamic checklists, and structured ZIP/JSON export."
+  },
+  "tags": {
+    "galleryFirst": "Gallery-first",
+    "configFirst": "Config-first",
+    "offlineFirst": "Offline-first",
+    "aiReady": "AI-ready"
+  },
+  "cards": {
+    "configs": {
+      "title": "Configs",
+      "description": "Load audit configs from GitHub, local JSON files, or direct URLs."
+    },
+    "inspections": {
+      "title": "Inspections",
+      "description": "Create local field inspections and attach photos from gallery."
+    },
+    "annotation": {
+      "title": "Annotation",
+      "description": "Mark zones on images and fill dynamic checklists."
+    },
+    "export": {
+      "title": "Export",
+      "description": "Export ZIP packages with photos, annotations, config, and manifest."
+    }
+  }
+}

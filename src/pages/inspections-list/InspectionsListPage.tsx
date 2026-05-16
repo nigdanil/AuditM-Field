@@ -3,9 +3,10 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { AlertCircle, ClipboardCheck, Plus, Trash2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
-import { inspectionStatusLabels } from '../../entities/inspection/model';
 import { loadActiveConfig } from '../../core/config/configStorage';
+import type { InspectionStatus } from '../../entities/inspection/types';
 import { createInspection, deleteInspection, listInspections } from '../../services/db/inspectionRepository';
 
 interface InspectionFormState {
@@ -24,6 +25,7 @@ const initialFormState: InspectionFormState = {
 
 export function InspectionsListPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation('inspections');
 
   const inspections = useLiveQuery(() => listInspections(), [], []);
   const [activeConfigState] = useState(() => loadActiveConfig());
@@ -31,6 +33,16 @@ export function InspectionsListPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const activeConfig = activeConfigState?.config;
+
+  const inspectionStatusLabels: Record<InspectionStatus, string> = {
+    DRAFT: t('status.DRAFT'),
+    READY: t('status.READY'),
+    EXPORTED: t('status.EXPORTED'),
+    ARCHIVED: t('status.ARCHIVED'),
+    SYNC_PENDING: t('status.SYNC_PENDING'),
+    SYNCED: t('status.SYNCED'),
+    SYNC_FAILED: t('status.SYNC_FAILED'),
+  };
 
   const updateFormField = (field: keyof InspectionFormState, value: string) => {
     setFormState((current) => ({
@@ -44,14 +56,14 @@ export function InspectionsListPage() {
     setErrorMessage(null);
 
     if (!activeConfig) {
-      setErrorMessage('Load an active config before creating an inspection.');
+      setErrorMessage(t('errors.loadConfig'));
       return;
     }
 
     const title = formState.title.trim();
 
     if (!title) {
-      setErrorMessage('Inspection title is required.');
+      setErrorMessage(t('errors.titleRequired'));
       return;
     }
 
@@ -68,14 +80,12 @@ export function InspectionsListPage() {
       setFormState(initialFormState);
       navigate(`/inspections/${inspection.id}`);
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : 'Failed to create inspection.',
-      );
+      setErrorMessage(error instanceof Error ? error.message : t('errors.createFailed'));
     }
   };
 
   const handleDeleteInspection = async (inspectionId: string) => {
-    const confirmed = window.confirm('Delete this inspection?');
+    const confirmed = window.confirm(t('confirm.delete'));
 
     if (!confirmed) {
       return;
@@ -88,22 +98,20 @@ export function InspectionsListPage() {
     <section className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="text-3xl font-semibold">Inspections</h1>
-          <p className="mt-2 text-slate-400">
-            Create and manage local field inspections stored in IndexedDB.
-          </p>
+          <h1 className="text-3xl font-semibold">{t('title')}</h1>
+          <p className="mt-2 text-slate-400">{t('description')}</p>
         </div>
 
         {activeConfig ? (
           <div className="rounded-2xl border border-emerald-900 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-100">
-            Active config: <span className="font-semibold">{activeConfig.name}</span>
+            {t('activeConfig', { name: activeConfig.name })}
           </div>
         ) : (
           <Link
             to="/config-manager"
             className="rounded-2xl border border-amber-900 bg-amber-950/30 px-4 py-3 text-sm text-amber-100 transition hover:bg-amber-900/40"
           >
-            Load config first
+            {t('loadConfigFirst')}
           </Link>
         )}
       </div>
@@ -118,10 +126,8 @@ export function InspectionsListPage() {
           </div>
 
           <div>
-            <h2 className="text-xl font-semibold">New inspection</h2>
-            <p className="mt-1 text-sm text-slate-400">
-              Create a local inspection linked to the active audit config.
-            </p>
+            <h2 className="text-xl font-semibold">{t('newInspection.title')}</h2>
+            <p className="mt-1 text-sm text-slate-400">{t('newInspection.description')}</p>
           </div>
         </div>
 
@@ -134,41 +140,49 @@ export function InspectionsListPage() {
 
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           <label className="space-y-2">
-            <span className="text-sm font-medium text-slate-300">Title *</span>
+            <span className="text-sm font-medium text-slate-300">
+              {t('newInspection.fields.title')}
+            </span>
             <input
               value={formState.title}
               onChange={(event) => updateFormField('title', event.target.value)}
-              placeholder="Retail visit / Warehouse zone / Equipment check"
+              placeholder={t('newInspection.placeholders.title')}
               className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-slate-400"
             />
           </label>
 
           <label className="space-y-2">
-            <span className="text-sm font-medium text-slate-300">Location</span>
+            <span className="text-sm font-medium text-slate-300">
+              {t('newInspection.fields.location')}
+            </span>
             <input
               value={formState.locationName}
               onChange={(event) => updateFormField('locationName', event.target.value)}
-              placeholder="Store name / Warehouse / Site"
+              placeholder={t('newInspection.placeholders.location')}
               className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-slate-400"
             />
           </label>
 
           <label className="space-y-2 md:col-span-2">
-            <span className="text-sm font-medium text-slate-300">Address</span>
+            <span className="text-sm font-medium text-slate-300">
+              {t('newInspection.fields.address')}
+            </span>
             <input
               value={formState.address}
               onChange={(event) => updateFormField('address', event.target.value)}
-              placeholder="Optional address"
+              placeholder={t('newInspection.placeholders.address')}
               className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-slate-400"
             />
           </label>
 
           <label className="space-y-2 md:col-span-2">
-            <span className="text-sm font-medium text-slate-300">Comment</span>
+            <span className="text-sm font-medium text-slate-300">
+              {t('newInspection.fields.comment')}
+            </span>
             <textarea
               value={formState.comment}
               onChange={(event) => updateFormField('comment', event.target.value)}
-              placeholder="Optional inspection comment"
+              placeholder={t('newInspection.placeholders.comment')}
               rows={3}
               className="w-full resize-y rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-slate-400"
             />
@@ -181,21 +195,19 @@ export function InspectionsListPage() {
           className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2 text-sm font-medium text-slate-950 transition hover:bg-white disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500"
         >
           <Plus size={16} />
-          Create inspection
+          {t('newInspection.create')}
         </button>
       </form>
 
       <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h2 className="text-xl font-semibold">Local inspections</h2>
-            <p className="mt-1 text-sm text-slate-400">
-              Stored locally in browser IndexedDB.
-            </p>
+            <h2 className="text-xl font-semibold">{t('localInspections.title')}</h2>
+            <p className="mt-1 text-sm text-slate-400">{t('localInspections.description')}</p>
           </div>
 
           <div className="rounded-xl bg-slate-950 px-4 py-3 text-sm text-slate-300">
-            Total: <span className="font-semibold text-slate-100">{inspections.length}</span>
+            {t('localInspections.total', { count: inspections.length })}
           </div>
         </div>
 
@@ -233,7 +245,9 @@ export function InspectionsListPage() {
                     ) : null}
 
                     <div className="mt-3 text-xs text-slate-600">
-                      Updated: {new Date(inspection.updatedAt).toLocaleString()}
+                      {t('localInspections.updated', {
+                        date: new Date(inspection.updatedAt).toLocaleString(),
+                      })}
                     </div>
                   </Link>
 
@@ -243,7 +257,7 @@ export function InspectionsListPage() {
                     className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-950 px-3 py-2 text-sm text-red-100 transition hover:bg-red-900"
                   >
                     <Trash2 size={15} />
-                    Delete
+                    {t('actions.delete')}
                   </button>
                 </div>
               </div>
@@ -251,9 +265,9 @@ export function InspectionsListPage() {
           </div>
         ) : (
           <div className="mt-5 rounded-2xl border border-dashed border-slate-700 bg-slate-950 p-8 text-center">
-            <h3 className="text-lg font-semibold">No inspections yet</h3>
+            <h3 className="text-lg font-semibold">{t('localInspections.emptyTitle')}</h3>
             <p className="mt-2 text-sm text-slate-400">
-              Create the first inspection using the form above.
+              {t('localInspections.emptyDescription')}
             </p>
           </div>
         )}

@@ -1,0 +1,31 @@
+{
+  "hero": {
+    "eyebrow": "Open-source PWA",
+    "title": "AuditM-Field",
+    "description": "Настраиваемая offline-first PWA для полевых фотоаудитов, визуальной разметки изображений, динамических чек-листов и структурированного ZIP/JSON-экспорта."
+  },
+  "tags": {
+    "galleryFirst": "Gallery-first",
+    "configFirst": "Config-first",
+    "offlineFirst": "Offline-first",
+    "aiReady": "AI-ready"
+  },
+  "cards": {
+    "configs": {
+      "title": "Конфиги",
+      "description": "Загрузка конфигов аудита из GitHub, локальных JSON-файлов или прямых URL."
+    },
+    "inspections": {
+      "title": "Проверки",
+      "description": "Создание локальных полевых проверок и прикрепление фотографий из галереи."
+    },
+    "annotation": {
+      "title": "Разметка",
+      "description": "Разметка зон на изображениях и заполнение динамических чек-листов."
+    },
+    "export": {
+      "title": "Экспорт",
+      "description": "Экспорт ZIP-пакетов с фотографиями, аннотациями, конфигом и manifest."
+    }
+  }
+}

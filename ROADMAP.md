@@ -1,339 +1,246 @@
 # AuditM-Field Roadmap
 
-This roadmap describes the MVP stages for AuditM-Field.
+This roadmap tracks MVP evolution of AuditM-Field as a configurable offline-first PWA for field photo audits, image annotation, structured evidence collection, ZIP transport, localization and AI-assisted review.
 
 ---
 
-## Status summary
+## Current status
 
-| MVP | Name | Status |
-| ---: | --- | --- |
-| MVP-0 | App skeleton | Done |
-| MVP-1 | Config loading | Done |
-| MVP-2 | Inspections and local storage | Done |
-| MVP-3 | Photo import | Done |
-| MVP-4 | Image annotation | Done |
-| MVP-4.1 | Annotation styling and filtering | Done |
-| MVP-5 | Dynamic annotation form | Done |
-| MVP-6 | Inspection and photo checklists | Done |
-| MVP-7 | ZIP export | Done |
-| MVP-7.1 | Export polish | Done |
-| MVP-8 | Import package back | Done |
-| MVP-9 | Storage adapters | Done |
-| MVP-9.1 | Storage adapters polish | Done |
-| MVP-9.2 | Annotator entry polish | Done |
-| MVP-10 | Transport workflow / n8n-ready integration | Done |
-| MVP-10.2 | n8n workflow example | Done |
-| MVP-11 | AI suggestions import | Done |
-| MVP-11.1 | AI suggestions mock generator | Done |
-| MVP-11.2 | AI suggestions review | Done |
-| MVP-11.3 | AI suggestions polish | Done |
-| MVP-12 | Open-source readiness / docs polish | Current |
+```text
+Current local milestone: MVP-12.1
+Status: complete locally, ready to be committed and pushed
+```
+
+MVP-12.1 includes:
+
+* localization layer;
+* RU/EN language switcher;
+* localized main navigation and key pages;
+* stable photo annotation rendering after page navigation;
+* stable annotation restoration after page reload;
+* one-click selection for saved annotations;
+* annotation geometry normalization for current image `blob:` URL;
+* guard against re-saving unchanged annotation geometry;
+* preserved AI suggestion review workflow.
 
 ---
 
-## MVP-0: App skeleton
+## Completed milestones
 
-Goal: create the base PWA application.
-
-Result:
-
-```text
-React + TypeScript + Vite app with layout, routing and PWA foundation.
-```
-
----
-
-## MVP-1: Config loading
-
-Goal: make the app configurable through JSON audit configs.
-
-Result:
-
-```text
-The app can load, validate and cache audit configs.
-```
+| MVP      | Status | Result                                                            |
+| -------- | ------ | ----------------------------------------------------------------- |
+| MVP-1    | Done   | Basic React/Vite application shell                                |
+| MVP-2    | Done   | Config-first audit model                                          |
+| MVP-3    | Done   | Local inspections and photo import                                |
+| MVP-4    | Done   | Photo annotation with Annotorious                                 |
+| MVP-4.1  | Done   | Annotation colors, styles and type filtering                      |
+| MVP-5    | Done   | Dynamic annotation form                                           |
+| MVP-6    | Done   | IndexedDB persistence via Dexie                                   |
+| MVP-7    | Done   | ZIP export/import structure                                       |
+| MVP-8    | Done   | Export Center and storage adapter direction                       |
+| MVP-9    | Done   | HTTP/Webhook/n8n transport direction                              |
+| MVP-10   | Done   | Demo transport examples                                           |
+| MVP-11   | Done   | AI suggestions import                                             |
+| MVP-11.3 | Done   | Human review workflow for AI suggestions                          |
+| MVP-12   | Done   | i18n foundation and RU/EN localization                            |
+| MVP-12.1 | Done   | Stable annotation rendering and selection after navigation/reload |
 
 ---
 
-## MVP-2: Inspections and local storage
+## MVP-12: Localization
 
-Goal: create and store inspections locally.
+### Goal
 
-Result:
+Prepare the app for real-world demos in English and Russian without hardcoding UI text into components.
 
-```text
-Inspections are stored in IndexedDB and can be opened later.
-```
+### Implemented
 
----
+* Added `i18next`.
+* Added `react-i18next`.
+* Added local translation resources.
+* Added `LanguageSwitcher`.
+* Added i18n initialization in `src/main.tsx`.
+* Added gradual localization support through `LegacyUiLocalizer`.
+* Localized:
 
-## MVP-3: Photo import
+  * app header;
+  * dashboard;
+  * inspections list;
+  * photo annotator entry page;
+  * settings page.
 
-Goal: import photos from gallery.
+### Notes
 
-Result:
-
-```text
-Photos are saved locally with metadata and preview support.
-```
-
----
-
-## MVP-4: Image annotation
-
-Goal: annotate photos.
-
-Result:
-
-```text
-Users can create, update and delete image annotations.
-```
+The current localization approach is compatible with offline-first usage because translation JSON files are bundled with the app.
 
 ---
 
-## MVP-4.1: Annotation styling and filtering
+## MVP-12.1: Stable photo annotation workflow
 
-Goal: improve visual annotation experience.
+### Goal
 
-Result:
+Make the photo annotator reliable after navigation, page reload and repeated annotation selection.
 
-```text
-Annotation colors and type filters are controlled by config.
-```
+### Problems fixed
 
----
+Before the fix, saved annotations could disappear visually after page transitions or require two clicks to select after page reload.
 
-## MVP-5: Dynamic annotation form
+Root causes:
 
-Goal: add dynamic forms for annotation attributes.
+* Annotorious image source depends on temporary `blob:` URLs.
+* After reload, the browser generates a new `blob:` URL for the same stored photo.
+* Stored annotations could still contain old `target.source` values.
+* Geometry was sometimes re-saved even when only the temporary image source changed.
+* `setAnnotations(...)` could rebuild the annotation layer and reset selection state.
 
-Result:
+### Implemented
 
-```text
-Selecting an annotation opens a config-driven form.
-```
+* Normalize annotation `target.source` to the current `objectUrl`.
+* Restore annotations after page navigation.
+* Restore annotations after page reload.
+* Track rendered annotation IDs.
+* Synchronize selected annotation between Annotorious and React state.
+* Avoid IndexedDB writes when annotation geometry is unchanged.
+* Keep selected annotation stable after click.
+* Keep AI review and dynamic form workflows intact.
 
----
+### User-visible result
 
-## MVP-6: Inspection and photo checklists
-
-Goal: add checklist forms at inspection and photo level.
-
-Result:
-
-```text
-Inspection and photo attributes are stored and validated.
-```
-
----
-
-## MVP-7: ZIP export
-
-Goal: export full inspection package.
-
-Result:
-
-```text
-The app can generate a ZIP with manifest, config, photos and annotations.
-```
+* Saved annotations remain visible after page reload.
+* Existing annotation can be selected with one click.
+* Selected annotation is reflected in the right-side panel.
+* Dynamic annotation form opens for the selected annotation.
+* AI suggestions can still be accepted, rejected or cleared.
 
 ---
 
-## MVP-7.1: Export polish
+## Next milestones
 
-Goal: improve export UX.
+## MVP-13: Open-source readiness
 
-Result:
+### Goal
 
-```text
-Export preview, counts, safe status handling and better ZIP naming.
-```
+Prepare the repository for public presentation, GitHub demo usage and management review.
 
----
+### Planned
 
-## MVP-8: Import package back
-
-Goal: restore exported package.
-
-Result:
-
-```text
-ZIP packages can be imported back into IndexedDB.
-```
-
----
-
-## MVP-9: Storage adapters
-
-Goal: send ZIP packages outside the browser.
-
-Result:
-
-```text
-Local download, HTTP upload and Webhook adapters.
-```
+* Add/update screenshots.
+* Add demo GIF or short screen recording.
+* Add GitHub Pages deployment notes.
+* Add architecture documentation.
+* Add configuration documentation.
+* Add export format documentation.
+* Add transport contract documentation.
+* Add n8n workflow documentation.
+* Add AI suggestions import documentation.
+* Add troubleshooting section.
+* Add contribution guidelines.
 
 ---
 
-## MVP-9.1: Storage adapters polish
+## MVP-14: Release automation
 
-Goal: improve adapter reliability and UX.
+### Goal
 
-Result:
+Automate versioning, changelog and GitHub releases.
 
-```text
-Test adapter, retry jobs, confirmations, response display and settings polish.
-```
+### Planned
 
----
+* Adopt Conventional Commits.
+* Add Release Please workflow.
+* Generate changelog automatically.
+* Create GitHub releases automatically.
+* Use semantic versioning:
 
-## MVP-9.2: Annotator entry polish
-
-Goal: replace empty Annotator route with useful photo picker.
-
-Result:
-
-```text
-Annotator page lists recent photos grouped by inspection.
-```
+  * `fix:` -> patch;
+  * `feat:` -> minor;
+  * breaking changes -> major.
 
 ---
 
-## MVP-10: Transport workflow / n8n-ready integration
+## MVP-15: Testing and quality
 
-Goal: define upload contract for backend/n8n.
+### Goal
 
-Result:
+Reduce regression risk for the annotation workflow and offline data model.
 
-```text
-HTTP/Webhook transport sends file, metadata, manifest and contract fields.
-```
+### Planned
 
----
-
-## MVP-10.2: n8n workflow example
-
-Goal: provide importable n8n workflow example.
-
-Result:
-
-```text
-Demo n8n workflow can receive AuditM-Field packages.
-```
+* Add unit tests for config schema.
+* Add tests for annotation repository.
+* Add tests for export/import.
+* Add tests for i18n initialization.
+* Add smoke test for photo annotation page.
+* Add regression test for annotation normalization.
 
 ---
 
-## MVP-11: AI suggestions import
+## MVP-16: Config registry improvements
 
-Goal: import AI-generated annotation suggestions.
+### Goal
 
-Result:
+Make config loading easier for demo and real usage.
 
-```text
-AI suggestions JSON can be validated and imported as source: ai annotations.
-```
+### Planned
 
----
+* Improve GitHub config registry support.
+* Add config metadata:
 
-## MVP-11.1: AI suggestions mock generator
-
-Goal: make local AI import test simple.
-
-Result:
-
-```text
-The app can generate demo AI suggestions using real local inspection/photo ids.
-```
-
----
-
-## MVP-11.2: AI suggestions review
-
-Goal: allow human review of AI suggestions.
-
-Result:
-
-```text
-Users can accept or reject imported AI annotations.
-```
+  * domain;
+  * version;
+  * language;
+  * description;
+  * screenshots;
+  * sample data.
+* Add config search.
+* Add config validation report UI.
+* Add config version compatibility checks.
 
 ---
 
-## MVP-11.3: AI suggestions polish
+## MVP-17: Backend / n8n integration
 
-Goal: improve AI review UX.
+### Goal
 
-Result:
+Make AuditM-Field easier to connect to external systems.
 
-```text
-Pending AI filter, clear pending suggestions, metadata details and duplicate protection.
-```
+### Planned
 
----
-
-## MVP-12: Open-source readiness / docs polish
-
-Goal: prepare project for GitHub, portfolio and public demo.
-
-Scope:
-
-```text
-README
-ROADMAP
-ARCHITECTURE
-CONTRIBUTING
-demo flow
-screenshots guide
-configuration docs
-export format docs
-```
+* Stabilize HTTP upload contract.
+* Add backend upload example.
+* Add n8n workflow example.
+* Add webhook response example.
+* Add import of processed AI suggestions from external workflow.
+* Add error journal for failed uploads.
 
 ---
 
-## Future ideas
+## MVP-18: AI workflow
 
-### MVP-13: Demo publishing
+### Goal
 
-```text
-- GitHub Pages / Vercel deployment
-- demo dataset
-- demo screenshots
-- public demo URL
-```
+Keep AI optional and adapter-based.
 
-### MVP-14: Test coverage
+### Planned
 
-```text
-- unit tests for config validation
-- unit tests for export/import
-- unit tests for AI suggestions import
-- smoke tests for main pages
-```
+* Keep OCR/CV/LLM/RAG outside the PWA.
+* Use ZIP package as transport boundary.
+* Import AI suggestions as reviewable annotations.
+* Add confidence thresholds.
+* Add batch accept/reject.
+* Add AI metadata visualization.
+* Add semantic matching / reconciliation scenarios.
 
-### MVP-15: UX polish
+---
 
-```text
-- mobile-first layout polish
-- local storage size indicator
-- better empty states
-- onboarding screen
-- help page
-```
+## Long-term direction
 
-### MVP-16: Backend connector examples
+AuditM-Field should become a reusable frontend core for:
 
-```text
-- simple Node.js upload endpoint
-- n8n processing workflow
-- S3/Google Drive storage examples
-```
-
-### MVP-17: AI suggestions round-trip
-
-```text
-- backend-generated suggestions package
-- report import
-- suggestion comparison
-- confidence thresholds
-```
+* field audits;
+* photo evidence collection;
+* visual inspection;
+* structured checklist workflows;
+* AI-assisted annotation review;
+* offline-first data capture;
+* backend/n8n integration demos.

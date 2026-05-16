@@ -1,0 +1,51 @@
+{
+  "title": "Inspections",
+  "description": "Create and manage local field inspections stored in IndexedDB.",
+  "activeConfig": "Active config: {{name}}",
+  "loadConfigFirst": "Load config first",
+  "newInspection": {
+    "title": "New inspection",
+    "description": "Create a local inspection linked to the active audit config.",
+    "fields": {
+      "title": "Title *",
+      "location": "Location",
+      "address": "Address",
+      "comment": "Comment"
+    },
+    "placeholders": {
+      "title": "Retail visit / Warehouse zone / Equipment check",
+      "location": "Store name / Warehouse / Site",
+      "address": "Optional address",
+      "comment": "Optional inspection comment"
+    },
+    "create": "Create inspection"
+  },
+  "localInspections": {
+    "title": "Local inspections",
+    "description": "Stored locally in browser IndexedDB.",
+    "total": "Total: {{count}}",
+    "emptyTitle": "No inspections yet",
+    "emptyDescription": "Create the first inspection using the form above.",
+    "updated": "Updated: {{date}}"
+  },
+  "actions": {
+    "delete": "Delete"
+  },
+  "errors": {
+    "loadConfig": "Load an active config before creating an inspection.",
+    "titleRequired": "Inspection title is required.",
+    "createFailed": "Failed to create inspection."
+  },
+  "confirm": {
+    "delete": "Delete this inspection?"
+  },
+  "status": {
+    "DRAFT": "Draft",
+    "READY": "Ready",
+    "EXPORTED": "Exported",
+    "ARCHIVED": "Archived",
+    "SYNC_PENDING": "Sync pending",
+    "SYNCED": "Synced",
+    "SYNC_FAILED": "Sync failed"
+  }
+}
