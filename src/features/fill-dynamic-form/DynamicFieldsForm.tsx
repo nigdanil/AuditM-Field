@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   useForm,
   type FieldErrors,
@@ -19,6 +20,8 @@ type DynamicFieldsFormProps = {
   onSubmit: (values: DynamicFormValues) => Promise<void> | void;
   submitLabel?: string;
   emptyMessage?: string;
+  readOnly?: boolean;
+  readOnlyMessage?: string;
 };
 
 type FieldOption = {
@@ -186,6 +189,7 @@ function normalizeSubmittedValues(
 
 function getRegisterOptions(
   field: DynamicFieldConfig,
+  requiredMessage: string,
 ): RegisterOptions<DynamicFormValues, string> {
   const options: RegisterOptions<DynamicFormValues, string> = {
     validate: (value: unknown) => {
@@ -193,7 +197,7 @@ function getRegisterOptions(
         return true;
       }
 
-      return !isEmptyValue(value) || `${field.label} is required`;
+      return !isEmptyValue(value) || requiredMessage;
     },
   };
 
@@ -230,17 +234,22 @@ function DynamicFieldInput({
   dictionaries,
   register,
   errors,
+  disabled,
 }: {
   field: DynamicFieldConfig;
   dictionaries: Record<string, string[]>;
   register: UseFormRegister<DynamicFormValues>;
   errors: FieldErrors<DynamicFormValues>;
+  disabled: boolean;
 }) {
+  const { t } = useTranslation('common');
   const options = getFieldOptions(field, dictionaries);
-  const registerOptions = getRegisterOptions(field);
+  const registerOptions = getRegisterOptions(field, t('form.validation.required', { label: field.label }));
   const errorMessage = getFieldErrorMessage(errors, field.id);
-  const commonInputClass =
-    'w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 outline-none transition focus:border-slate-400';
+  const commonInputClass = [
+    'w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 outline-none transition focus:border-slate-400',
+    disabled ? 'cursor-not-allowed opacity-70' : '',
+  ].join(' ');
 
   return (
     <label className="block space-y-2">
@@ -248,7 +257,7 @@ function DynamicFieldInput({
         <span>{field.label}</span>
         {field.required ? (
           <span className="rounded-full bg-red-950 px-2 py-0.5 text-[10px] uppercase tracking-wide text-red-100">
-            Required
+            {t('form.required')}
           </span>
         ) : null}
       </span>
@@ -257,6 +266,7 @@ function DynamicFieldInput({
         <input
           type="text"
           placeholder={field.placeholder}
+          disabled={disabled}
           className={commonInputClass}
           {...register(field.id, registerOptions)}
         />
@@ -266,6 +276,7 @@ function DynamicFieldInput({
         <textarea
           rows={4}
           placeholder={field.placeholder}
+          disabled={disabled}
           className={commonInputClass}
           {...register(field.id, registerOptions)}
         />
@@ -275,6 +286,7 @@ function DynamicFieldInput({
         <input
           type="number"
           placeholder={field.placeholder}
+          disabled={disabled}
           className={commonInputClass}
           {...register(field.id, registerOptions)}
         />
@@ -283,14 +295,15 @@ function DynamicFieldInput({
       {field.type === 'date' ? (
         <input
           type="date"
+          disabled={disabled}
           className={commonInputClass}
           {...register(field.id, registerOptions)}
         />
       ) : null}
 
       {field.type === 'select' ? (
-        <select className={commonInputClass} {...register(field.id, registerOptions)}>
-          <option value="">{field.placeholder ?? 'Select value'}</option>
+        <select disabled={disabled} className={commonInputClass} {...register(field.id, registerOptions)}>
+          <option value="">{field.placeholder ?? t('form.selectValue')}</option>
           {options.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
@@ -302,6 +315,7 @@ function DynamicFieldInput({
       {field.type === 'multiselect' ? (
         <select
           multiple
+          disabled={disabled}
           className={`${commonInputClass} min-h-32`}
           {...register(field.id, registerOptions)}
         >
@@ -317,10 +331,11 @@ function DynamicFieldInput({
         <span className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100">
           <input
             type="checkbox"
-            className="h-4 w-4 rounded border-slate-700 bg-slate-950"
+            disabled={disabled}
+            className="h-4 w-4 rounded border-slate-700 bg-slate-950 disabled:cursor-not-allowed"
             {...register(field.id, registerOptions)}
           />
-          <span>{field.placeholder ?? 'Yes / true'}</span>
+          <span>{field.placeholder ?? t('form.yesTrue')}</span>
         </span>
       ) : null}
 
@@ -332,14 +347,15 @@ function DynamicFieldInput({
                 <input
                   type="radio"
                   value={option.value}
-                  className="h-4 w-4 border-slate-700 bg-slate-950"
+                  disabled={disabled}
+                  className="h-4 w-4 border-slate-700 bg-slate-950 disabled:cursor-not-allowed"
                   {...register(field.id, registerOptions)}
                 />
                 <span>{option.label}</span>
               </span>
             ))
           ) : (
-            <span className="text-sm text-slate-500">No options configured.</span>
+            <span className="text-sm text-slate-500">{t('form.noOptions')}</span>
           )}
         </span>
       ) : null}
@@ -360,9 +376,12 @@ export function DynamicFieldsForm({
   dictionaries,
   values,
   onSubmit,
-  submitLabel = 'Save form',
-  emptyMessage = 'No dynamic form configured for the active config.',
+  submitLabel,
+  emptyMessage,
+  readOnly = false,
+  readOnlyMessage,
 }: DynamicFieldsFormProps) {
+  const { t } = useTranslation('common');
   const defaultValues = useMemo(() => buildDefaultValues(fields, values), [fields, values]);
 
   const {
@@ -379,19 +398,29 @@ export function DynamicFieldsForm({
   }, [defaultValues, reset]);
 
   const handleFormSubmit = async (submittedValues: DynamicFormValues) => {
+    if (readOnly) {
+      return;
+    }
+
     await onSubmit(normalizeSubmittedValues(fields, submittedValues));
   };
 
   if (fields.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-slate-700 bg-slate-950 p-4 text-sm text-slate-500">
-        {emptyMessage}
+        {emptyMessage ?? t('form.noDynamicForm')}
       </div>
     );
   }
 
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
+      {readOnly && readOnlyMessage ? (
+        <div className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-400">
+          {readOnlyMessage}
+        </div>
+      ) : null}
+
       {fields.map((field) => (
         <DynamicFieldInput
           key={field.id}
@@ -399,16 +428,19 @@ export function DynamicFieldsForm({
           dictionaries={dictionaries}
           register={register}
           errors={errors}
+          disabled={readOnly}
         />
       ))}
 
-      <button
-        type="submit"
-        disabled={isSubmitting}
-        className="w-full rounded-xl bg-sky-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {isSubmitting ? 'Saving...' : submitLabel}
-      </button>
+      {!readOnly ? (
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="w-full rounded-xl bg-sky-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isSubmitting ? t('form.saving') : submitLabel ?? t('form.saveForm')}
+        </button>
+      ) : null}
     </form>
   );
 }

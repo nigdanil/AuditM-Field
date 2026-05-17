@@ -15,5 +15,42 @@
     "label": "Language",
     "en": "EN",
     "ru": "RU"
+  },
+  "actions": {
+    "logout": "Logout"
+  },
+  "roles": {
+    "merchandiser": "Merchandiser",
+    "supervisor": "Supervisor",
+    "admin": "Administrator",
+    "viewer": "Viewer"
+  },
+  "login": {
+    "badge": "Mock authorization",
+    "title": "AuditM-Field role scenario",
+    "description": "Log in as a merchandiser, supervisor, or admin to test role-based UI, permissions, and the future review workflow foundation.",
+    "form": {
+      "title": "Sign in",
+      "description": "This is a local mock login. It can later be replaced by backend auth, SSO, Keycloak, or another provider.",
+      "login": "Login",
+      "password": "Password",
+      "submit": "Sign in"
+    },
+    "errors": {
+      "invalidCredentials": "Invalid login or password",
+      "demoUserNotFound": "Demo user was not found"
+    }
+  },
+  "form": {
+    "required": "Required",
+    "validation": {
+      "required": "{{label}} is required"
+    },
+    "selectValue": "Select value",
+    "yesTrue": "Yes / true",
+    "noOptions": "No options configured.",
+    "saveForm": "Save form",
+    "saving": "Saving...",
+    "noDynamicForm": "No dynamic form configured for the active config."
   }
 }

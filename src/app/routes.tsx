@@ -5,9 +5,12 @@ import { DashboardPage } from '../pages/dashboard/DashboardPage';
 import { ExportCenterPage } from '../pages/export-center/ExportCenterPage';
 import { InspectionDetailPage } from '../pages/inspection-detail/InspectionDetailPage';
 import { InspectionsListPage } from '../pages/inspections-list/InspectionsListPage';
+import { LoginPage } from '../pages/login/LoginPage';
 import { PhotoAnnotatorEntryPage } from '../pages/photo-annotator/PhotoAnnotatorEntryPage';
 import { PhotoAnnotatorPage } from '../pages/photo-annotator/PhotoAnnotatorPage';
 import { SettingsPage } from '../pages/settings/SettingsPage';
+import { RequireAuth } from '../features/auth/RequireAuth';
+import { RequirePermission } from '../features/auth/RequirePermission';
 import { AppLayout } from '../widgets/app-layout/AppLayout';
 
 const routerBasename = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -15,8 +18,16 @@ const routerBasename = import.meta.env.BASE_URL.replace(/\/$/, '');
 export const router = createBrowserRouter(
   [
     {
+      path: '/login',
+      element: <LoginPage />,
+    },
+    {
       path: '/',
-      element: <AppLayout />,
+      element: (
+        <RequireAuth>
+          <AppLayout />
+        </RequireAuth>
+      ),
       children: [
         {
           index: true,
@@ -28,31 +39,59 @@ export const router = createBrowserRouter(
         },
         {
           path: 'config-manager',
-          element: <ConfigManagerPage />,
+          element: (
+            <RequirePermission permission="config:manage">
+              <ConfigManagerPage />
+            </RequirePermission>
+          ),
         },
         {
           path: 'inspections',
-          element: <InspectionsListPage />,
+          element: (
+            <RequirePermission permission="inspection:view">
+              <InspectionsListPage />
+            </RequirePermission>
+          ),
         },
         {
           path: 'inspections/:inspectionId',
-          element: <InspectionDetailPage />,
+          element: (
+            <RequirePermission permission="inspection:view">
+              <InspectionDetailPage />
+            </RequirePermission>
+          ),
         },
         {
           path: 'annotator',
-          element: <PhotoAnnotatorEntryPage />,
+          element: (
+            <RequirePermission permission="annotation:view">
+              <PhotoAnnotatorEntryPage />
+            </RequirePermission>
+          ),
         },
         {
           path: 'photos/:photoId/annotate',
-          element: <PhotoAnnotatorPage />,
+          element: (
+            <RequirePermission permission="annotation:view">
+              <PhotoAnnotatorPage />
+            </RequirePermission>
+          ),
         },
         {
           path: 'export',
-          element: <ExportCenterPage />,
+          element: (
+            <RequirePermission permission="export:create">
+              <ExportCenterPage />
+            </RequirePermission>
+          ),
         },
         {
           path: 'settings',
-          element: <SettingsPage />,
+          element: (
+            <RequirePermission permission="settings:manage">
+              <SettingsPage />
+            </RequirePermission>
+          ),
         },
         {
           path: '*',

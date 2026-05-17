@@ -1,15 +1,17 @@
 import type { ChangeEvent } from 'react';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ArrowLeft, ClipboardCheck, ImagePlus, Trash2 } from 'lucide-react';
 
 import { loadActiveConfig } from '../../core/config/configStorage';
 import type { AuditConfig, DynamicFieldConfig } from '../../core/config/types';
-import { inspectionStatusLabels } from '../../entities/inspection/model';
 import type { Inspection, InspectionStatus } from '../../entities/inspection/types';
 import type { PhotoRecord } from '../../entities/photo/types';
 import { getFileDebugLabel, isProbablyImageFile } from '../../entities/photo/fileUtils';
+import { useAuthStore } from '../../features/auth/authStore';
+import { can } from '../../features/auth/permissions';
 import { DynamicFieldsForm } from '../../features/fill-dynamic-form/DynamicFieldsForm';
 import {
   getInspectionById,
@@ -79,14 +81,19 @@ function areRequiredFieldsFilled(
 function getChecklistLabel(
   fields: DynamicFieldConfig[],
   values: Record<string, unknown>,
+  noRequiredFieldsLabel: string,
+  formatRequiredProgress: (completed: number, total: number) => string,
 ): string {
   const requiredCount = getRequiredFields(fields).length;
 
   if (requiredCount === 0) {
-    return 'No required fields';
+    return noRequiredFieldsLabel;
   }
 
-  return `${getCompletedRequiredFieldCount(fields, values)}/${requiredCount} required`;
+  return formatRequiredProgress(
+    getCompletedRequiredFieldCount(fields, values),
+    requiredCount,
+  );
 }
 
 function getAvailableStatusValues(input: {
@@ -128,6 +135,7 @@ function isInspectionReady(input: {
 }
 
 function PhotoThumbnail({ photo }: { photo: PhotoRecord }) {
+  const { t } = useTranslation('inspections');
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -150,7 +158,7 @@ function PhotoThumbnail({ photo }: { photo: PhotoRecord }) {
         />
       ) : (
         <div className="flex h-44 items-center justify-center text-sm text-slate-500">
-          Loading preview...
+          {t('detail.loadingPreview')}
         </div>
       )}
     </div>
@@ -158,7 +166,9 @@ function PhotoThumbnail({ photo }: { photo: PhotoRecord }) {
 }
 
 export function InspectionDetailPage() {
+  const { t } = useTranslation('inspections');
   const { inspectionId } = useParams();
+  const currentUser = useAuthStore((state) => state.currentUser);
 
   const inspection = useLiveQuery(
     () => {
@@ -255,7 +265,7 @@ export function InspectionDetailPage() {
       nextPhotos: photos,
     });
 
-    setInspectionFormStatus('Inspection checklist saved.');
+    setInspectionFormStatus(t('detail.messages.inspectionChecklistSaved'));
   };
 
   const handleSavePhotoForm = async (
@@ -278,7 +288,7 @@ export function InspectionDetailPage() {
       nextPhotos,
     });
 
-    setPhotoFormStatus(`Photo checklist saved: ${photo.fileName}`);
+    setPhotoFormStatus(t('detail.messages.photoChecklistSaved', { fileName: photo.fileName }));
   };
 
   const handlePhotoUpload = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -293,17 +303,19 @@ export function InspectionDetailPage() {
     }
 
     if (selectedFiles.length === 0) {
-      setUploadError('No files selected. On Android, make sure the photo is available on this device.');
+      setUploadError(t('detail.errors.noFilesSelected'));
       return;
     }
 
     if (imageFiles.length === 0) {
       setUploadError(
         [
-          'Select at least one image file.',
-          'On Android offline mode, cloud-only Google Photos items may not be available.',
+          t('detail.errors.selectImage'),
+          t('detail.errors.androidCloudOnly'),
           rejectedFiles.length > 0
-            ? `Rejected files: ${rejectedFiles.map(getFileDebugLabel).join('; ')}`
+            ? t('detail.errors.rejectedFiles', {
+              files: rejectedFiles.map(getFileDebugLabel).join('; '),
+            })
             : null,
         ]
           .filter(Boolean)
@@ -329,20 +341,21 @@ export function InspectionDetailPage() {
 
       if (rejectedFiles.length > 0) {
         setUploadError(
-          `Imported ${createdPhotos.length} photo(s). Skipped non-image file(s): ${rejectedFiles
-            .map(getFileDebugLabel)
-            .join('; ')}`,
+          t('detail.messages.importedWithSkippedFiles', {
+            count: createdPhotos.length,
+            files: rejectedFiles.map(getFileDebugLabel).join('; '),
+          }),
         );
       }
     } catch (error) {
-      setUploadError(error instanceof Error ? error.message : 'Failed to import photos.');
+      setUploadError(error instanceof Error ? error.message : t('detail.errors.importFailed'));
     } finally {
       setIsUploading(false);
     }
   };
 
   const handleDeletePhoto = async (photoId: string) => {
-    const confirmed = window.confirm('Delete this photo?');
+    const confirmed = window.confirm(t('detail.confirm.deletePhoto'));
 
     if (!confirmed) {
       return;
@@ -360,7 +373,7 @@ export function InspectionDetailPage() {
     return (
       <section className="space-y-6">
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-8 text-center">
-          Loading inspection...
+          {t('detail.loadingInspection')}
         </div>
       </section>
     );
@@ -374,11 +387,11 @@ export function InspectionDetailPage() {
           className="inline-flex items-center gap-2 text-sm text-slate-400 transition hover:text-slate-100"
         >
           <ArrowLeft size={16} />
-          Back to inspections
+          {t('detail.backToInspections')}
         </Link>
 
         <div className="rounded-2xl border border-red-900 bg-red-950/30 p-8 text-center text-red-100">
-          Inspection not found.
+          {t('detail.notFound')}
         </div>
       </section>
     );
@@ -397,18 +410,40 @@ export function InspectionDetailPage() {
     isReady: inspectionReady,
   });
 
-  const checklistsEditable = isChecklistEditable(inspection.status);
+  const checklistsEditableByStatus = isChecklistEditable(inspection.status);
+  const canEditInspectionChecklist = checklistsEditableByStatus && can(currentUser, 'photo:add');
+  const canEditPhotoChecklist = checklistsEditableByStatus && can(currentUser, 'photo:add');
+  const canUploadPhotos =
+    inspection.status !== 'ARCHIVED' &&
+    (can(currentUser, 'photo:add') || can(currentUser, 'correction:upload'));
+  const canDeletePhotos = checklistsEditableByStatus && can(currentUser, 'photo:add');
+  const canViewAnnotations = can(currentUser, 'annotation:view');
+  const canEditAnnotations = can(currentUser, 'annotation:create') || can(currentUser, 'annotation:review');
+  const canChangeStatus =
+    can(currentUser, 'inspection:submit') ||
+    can(currentUser, 'inspection:review') ||
+    can(currentUser, 'review:approve');
+
   const checklistReadonlyMessage =
     inspection.status === 'ARCHIVED'
-      ? 'Inspection is archived. Checklists are hidden.'
-      : 'Inspection is ready. Switch status back to Draft to edit checklists.';
+      ? t('detail.readonly.archived')
+      : canEditInspectionChecklist
+        ? t('detail.readonly.ready')
+        : t('detail.readonly.noPermission');
+
+  const photoChecklistReadonlyMessage =
+    inspection.status === 'ARCHIVED'
+      ? t('detail.readonly.archived')
+      : canEditPhotoChecklist
+        ? t('detail.readonly.ready')
+        : t('detail.readonly.noPermission');
 
   const statusMessage =
     inspection.status === 'ARCHIVED'
-      ? 'Inspection is archived.'
+      ? t('detail.statusMessage.archived')
       : inspectionReady
-        ? 'Checklist complete. Inspection is ready.'
-        : 'Checklist is not complete yet.';
+        ? t('detail.statusMessage.ready')
+        : t('detail.statusMessage.notComplete');
 
   const statusMessageClass =
     inspection.status === 'ARCHIVED'
@@ -424,7 +459,7 @@ export function InspectionDetailPage() {
         className="inline-flex items-center gap-2 text-sm text-slate-400 transition hover:text-slate-100"
       >
         <ArrowLeft size={16} />
-        Back to inspections
+        {t('detail.backToInspections')}
       </Link>
 
       <div className="rounded-3xl border border-slate-800 bg-slate-900 p-6">
@@ -437,21 +472,22 @@ export function InspectionDetailPage() {
             <h1 className="text-3xl font-semibold">{inspection.title}</h1>
 
             <p className="mt-3 text-sm text-slate-400">
-              ID: <span className="font-mono text-slate-300">{inspection.id}</span>
+              {t('detail.fields.id')}: <span className="font-mono text-slate-300">{inspection.id}</span>
             </p>
           </div>
 
           <div className="space-y-3">
             <label className="block space-y-2">
-              <span className="text-sm font-medium text-slate-300">Status</span>
+              <span className="text-sm font-medium text-slate-300">{t('detail.fields.status')}</span>
               <select
                 value={inspection.status}
                 onChange={handleStatusChange}
-                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 outline-none transition focus:border-slate-400"
+                disabled={!canChangeStatus}
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 outline-none transition focus:border-slate-400 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {availableStatusValues.map((status) => (
                   <option key={status} value={status}>
-                    {inspectionStatusLabels[status]}
+                    {t(`status.${status}`)}
                   </option>
                 ))}
               </select>
@@ -465,50 +501,50 @@ export function InspectionDetailPage() {
 
         <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-2xl bg-slate-950 p-4">
-            <div className="text-xs uppercase tracking-wide text-slate-500">Config</div>
+            <div className="text-xs uppercase tracking-wide text-slate-500">{t('detail.fields.config')}</div>
             <div className="mt-2 font-semibold">{inspection.configName}</div>
             <div className="mt-1 font-mono text-xs text-slate-500">{inspection.configId}</div>
           </div>
 
           <div className="rounded-2xl bg-slate-950 p-4">
-            <div className="text-xs uppercase tracking-wide text-slate-500">Status</div>
-            <div className="mt-2 font-semibold">{inspectionStatusLabels[inspection.status]}</div>
+            <div className="text-xs uppercase tracking-wide text-slate-500">{t('detail.fields.status')}</div>
+            <div className="mt-2 font-semibold">{t(`status.${inspection.status}`)}</div>
           </div>
 
           <div className="rounded-2xl bg-slate-950 p-4">
-            <div className="text-xs uppercase tracking-wide text-slate-500">Created</div>
+            <div className="text-xs uppercase tracking-wide text-slate-500">{t('detail.fields.created')}</div>
             <div className="mt-2 text-sm">{new Date(inspection.createdAt).toLocaleString()}</div>
           </div>
 
           <div className="rounded-2xl bg-slate-950 p-4">
-            <div className="text-xs uppercase tracking-wide text-slate-500">Updated</div>
+            <div className="text-xs uppercase tracking-wide text-slate-500">{t('detail.fields.updated')}</div>
             <div className="mt-2 text-sm">{new Date(inspection.updatedAt).toLocaleString()}</div>
           </div>
         </div>
 
         <div className="mt-6 grid gap-4 lg:grid-cols-2">
           <div className="rounded-2xl border border-slate-800 bg-slate-950 p-5">
-            <h2 className="text-lg font-semibold">Location</h2>
+            <h2 className="text-lg font-semibold">{t('detail.location.title')}</h2>
 
             <div className="mt-4 space-y-3 text-sm">
               <div>
-                <div className="text-slate-500">Name</div>
+                <div className="text-slate-500">{t('detail.location.name')}</div>
                 <div className="mt-1 text-slate-200">
-                  {inspection.locationName || 'Not specified'}
+                  {inspection.locationName || t('detail.notSpecified')}
                 </div>
               </div>
 
               <div>
-                <div className="text-slate-500">Address</div>
-                <div className="mt-1 text-slate-200">{inspection.address || 'Not specified'}</div>
+                <div className="text-slate-500">{t('detail.location.address')}</div>
+                <div className="mt-1 text-slate-200">{inspection.address || t('detail.notSpecified')}</div>
               </div>
             </div>
           </div>
 
           <div className="rounded-2xl border border-slate-800 bg-slate-950 p-5">
-            <h2 className="text-lg font-semibold">Comment</h2>
+            <h2 className="text-lg font-semibold">{t('detail.comment.title')}</h2>
             <p className="mt-4 text-sm leading-6 text-slate-400">
-              {inspection.comment || 'No comment.'}
+              {inspection.comment || t('detail.comment.empty')}
             </p>
           </div>
         </div>
@@ -516,54 +552,55 @@ export function InspectionDetailPage() {
         <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-950 p-5">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
-              <h2 className="text-xl font-semibold">Inspection checklist</h2>
+              <h2 className="text-xl font-semibold">{t('detail.inspectionChecklist.title')}</h2>
               <p className="mt-2 text-sm text-slate-400">
-                Form is built from config.inspectionForm and stored in inspection.attributes.
+                {t('detail.inspectionChecklist.description')}
               </p>
             </div>
 
             <span className="rounded-full bg-slate-900 px-3 py-1 text-xs text-slate-300">
-              {getChecklistLabel(inspectionForm, inspection.attributes ?? {})}
+              {getChecklistLabel(
+                inspectionForm,
+                inspection.attributes ?? {},
+                t('detail.checklist.noRequiredFields'),
+                (completed, total) => t('detail.checklist.requiredProgress', { completed, total }),
+              )}
             </span>
           </div>
 
-          {inspectionFormStatus && checklistsEditable ? (
+          {inspectionFormStatus && canEditInspectionChecklist ? (
             <div className="mt-4 rounded-xl border border-emerald-900 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-100">
               {inspectionFormStatus}
             </div>
           ) : null}
 
           <div className="mt-5">
-            {checklistsEditable ? (
-              <DynamicFieldsForm
-                fields={inspectionForm}
-                dictionaries={dictionaries}
-                values={inspection.attributes ?? {}}
-                onSubmit={handleSaveInspectionForm}
-                submitLabel="Save inspection checklist"
-                emptyMessage="No inspection checklist configured for the active config."
-              />
-            ) : (
-              <div className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-400">
-                {checklistReadonlyMessage}
-              </div>
-            )}
+            <DynamicFieldsForm
+              fields={inspectionForm}
+              dictionaries={dictionaries}
+              values={inspection.attributes ?? {}}
+              onSubmit={handleSaveInspectionForm}
+              submitLabel={t('detail.actions.saveInspectionChecklist')}
+              emptyMessage={t('detail.inspectionChecklist.empty')}
+              readOnly={!canEditInspectionChecklist}
+              readOnlyMessage={checklistReadonlyMessage}
+            />
           </div>
         </div>
 
         <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-950 p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <h2 className="text-xl font-semibold">Photo gallery</h2>
+              <h2 className="text-xl font-semibold">{t('detail.photoGallery.title')}</h2>
               <p className="mt-2 text-sm text-slate-400">
-                Import one or more photos from gallery and fill photo-level checklist fields.
+                {t('detail.photoGallery.description')}
               </p>
             </div>
 
-            {checklistsEditable ? (
+            {canUploadPhotos ? (
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                 <label className="space-y-2">
-                  <span className="text-sm font-medium text-slate-300">Photo type</span>
+                  <span className="text-sm font-medium text-slate-300">{t('detail.photoGallery.photoType')}</span>
                   <select
                     value={effectivePhotoType}
                     onChange={(event) => setSelectedPhotoType(event.target.value)}
@@ -576,14 +613,14 @@ export function InspectionDetailPage() {
                         </option>
                       ))
                     ) : (
-                      <option value="photo">Photo</option>
+                      <option value="photo">{t('detail.photoGallery.defaultPhotoType')}</option>
                     )}
                   </select>
                 </label>
 
                 <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-100 px-4 py-3 text-sm font-medium text-slate-950 transition hover:bg-white">
                   <ImagePlus size={16} />
-                  {isUploading ? 'Importing...' : 'Import photos'}
+                  {isUploading ? t('detail.actions.importing') : t('detail.actions.importPhotos')}
                   <input
                     type="file"
                     accept="image/*"
@@ -603,16 +640,9 @@ export function InspectionDetailPage() {
             </div>
           ) : null}
 
-          {photoFormStatus && checklistsEditable ? (
+          {photoFormStatus && canEditPhotoChecklist ? (
             <div className="mt-5 rounded-xl border border-emerald-900 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-100">
               {photoFormStatus}
-            </div>
-          ) : null}
-
-          {photoForm.length > 0 && !checklistsEditable ? (
-            <div className="mt-5 rounded-xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-400">
-              Photo checklists are hidden for the current inspection status. Switch status back to
-              Draft to edit photo checklists.
             </div>
           ) : null}
 
@@ -637,19 +667,26 @@ export function InspectionDetailPage() {
                       ) : null}
                       {photoForm.length > 0 ? (
                         <span className="rounded-full bg-slate-800 px-3 py-1">
-                          {getChecklistLabel(photoForm, photo.attributes ?? {})}
+                          {getChecklistLabel(
+                            photoForm,
+                            photo.attributes ?? {},
+                            t('detail.checklist.noRequiredFields'),
+                            (completed, total) => t('detail.checklist.requiredProgress', { completed, total }),
+                          )}
                         </span>
                       ) : null}
                     </div>
 
                     <div className="pt-2 text-xs text-slate-600">
-                      Imported: {new Date(photo.createdAt).toLocaleString()}
+                      {t('detail.photoGallery.imported', {
+                        date: new Date(photo.createdAt).toLocaleString(),
+                      })}
                     </div>
 
-                    {photoForm.length > 0 && checklistsEditable ? (
+                    {photoForm.length > 0 ? (
                       <div className="mt-4 rounded-xl border border-slate-800 bg-slate-950 p-4">
                         <h3 className="mb-3 text-sm font-semibold text-slate-100">
-                          Photo checklist
+                          {t('detail.photoChecklist.title')}
                         </h3>
 
                         <DynamicFieldsForm
@@ -657,35 +694,42 @@ export function InspectionDetailPage() {
                           dictionaries={dictionaries}
                           values={photo.attributes ?? {}}
                           onSubmit={(attributes) => handleSavePhotoForm(photo, attributes)}
-                          submitLabel="Save photo checklist"
-                          emptyMessage="No photo checklist configured for the active config."
+                          submitLabel={t('detail.actions.savePhotoChecklist')}
+                          emptyMessage={t('detail.photoChecklist.empty')}
+                          readOnly={!canEditPhotoChecklist}
+                          readOnlyMessage={photoChecklistReadonlyMessage}
                         />
                       </div>
                     ) : null}
 
                     <div className="flex gap-2 pt-2">
-                      {checklistsEditable ? (
-                        <>
-                          <Link
-                            to={`/photos/${photo.id}/annotate`}
-                            className="inline-flex flex-1 items-center justify-center rounded-xl bg-slate-100 px-3 py-2 text-sm font-medium text-slate-950 transition hover:bg-white"
-                          >
-                            Annotate
-                          </Link>
+                      {canViewAnnotations ? (
+                        <Link
+                          to={`/photos/${photo.id}/annotate`}
+                          className="inline-flex flex-1 items-center justify-center rounded-xl bg-slate-100 px-3 py-2 text-sm font-medium text-slate-950 transition hover:bg-white"
+                        >
+                          {canEditAnnotations
+                            ? t('detail.actions.annotate')
+                            : t('detail.actions.viewAnnotations')}
+                        </Link>
+                      ) : null}
 
-                          <button
-                            type="button"
-                            onClick={() => handleDeletePhoto(photo.id)}
-                            className="inline-flex items-center justify-center rounded-xl bg-red-950 px-3 py-2 text-sm text-red-100 transition hover:bg-red-900"
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        </>
-                      ) : (
+                      {canDeletePhotos ? (
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePhoto(photo.id)}
+                          className="inline-flex items-center justify-center rounded-xl bg-red-950 px-3 py-2 text-sm text-red-100 transition hover:bg-red-900"
+                          aria-label={t('detail.actions.deletePhoto')}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      ) : null}
+
+                      {!canViewAnnotations && !canDeletePhotos ? (
                         <div className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-center text-sm text-slate-500">
-                          Photo editing is locked for this status.
+                          {t('detail.photoGallery.noPhotoActions')}
                         </div>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -693,9 +737,9 @@ export function InspectionDetailPage() {
             </div>
           ) : (
             <div className="mt-6 rounded-2xl border border-dashed border-slate-700 bg-slate-950 p-8 text-center">
-              <h3 className="text-lg font-semibold">No photos yet</h3>
+              <h3 className="text-lg font-semibold">{t('detail.photoGallery.emptyTitle')}</h3>
               <p className="mt-2 text-sm text-slate-400">
-                Import photos from gallery to start field photo annotation.
+                {t('detail.photoGallery.emptyDescription')}
               </p>
             </div>
           )}

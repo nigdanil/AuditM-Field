@@ -14,6 +14,8 @@ AuditM-Field
   -> human review in Annotator
 ```
 
+---
+
 ## Quick local test
 
 Open:
@@ -31,7 +33,7 @@ Generate & import demo
 Expected result:
 
 ```text
-Demo AI suggestion generated and imported: 1/1
+Demo AI suggestion generated and imported
 Open first affected photo
 ```
 
@@ -41,17 +43,21 @@ Open the affected photo in Annotator and check that the imported annotation has:
 source: ai
 ```
 
+---
+
 ## AI review
 
 In Annotator, AI suggestions are pending human review.
 
-Actions:
+Actions for supervisor/admin:
 
 ```text
 Accept -> source changes from ai to human
 Reject -> AI annotation is deleted
 Clear pending AI suggestions -> removes all pending AI suggestions from the current photo
 ```
+
+Read-only roles can view AI suggestions and metadata but cannot approve, reject or clear suggestions.
 
 Available filters:
 
@@ -82,6 +88,8 @@ _aiOriginalSource: ai
 
 This allows the UI to show an `accepted AI` badge.
 
+---
+
 ## Duplicate protection
 
 If the same `ai-suggestions.json` file is imported again, annotations with already existing suggestion ids are skipped.
@@ -92,6 +100,8 @@ Import result includes:
 annotationsImported
 skippedDuplicates
 ```
+
+---
 
 ## Minimal JSON format
 
@@ -135,6 +145,8 @@ skippedDuplicates
 }
 ```
 
+---
+
 ## Import behavior
 
 AuditM-Field validates:
@@ -165,3 +177,20 @@ _aiOriginalSource
 ```
 
 These fields are hidden from normal attribute preview, but can be viewed in the `AI metadata` details block.
+
+---
+
+## Role restrictions
+
+AI review actions must be available only to roles with review permission.
+
+Recommended behavior:
+
+| Role         | Can view AI suggestion | Can accept/reject |
+| ------------ | ---------------------- | ----------------- |
+| Merchandiser | Yes                    | No                |
+| Supervisor   | Yes                    | Yes               |
+| Admin        | Yes                    | Yes               |
+| Viewer       | Yes                    | No                |
+
+Production backend integration should repeat these checks server-side.

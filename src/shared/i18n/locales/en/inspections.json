@@ -47,5 +47,85 @@
     "SYNC_PENDING": "Sync pending",
     "SYNCED": "Synced",
     "SYNC_FAILED": "Sync failed"
+  },
+  "detail": {
+    "loadingInspection": "Loading inspection...",
+    "loadingPreview": "Loading preview...",
+    "backToInspections": "Back to inspections",
+    "notFound": "Inspection not found.",
+    "notSpecified": "Not specified",
+    "fields": {
+      "id": "ID",
+      "status": "Status",
+      "config": "Config",
+      "created": "Created",
+      "updated": "Updated"
+    },
+    "statusMessage": {
+      "archived": "Inspection is archived.",
+      "ready": "Checklist complete. Inspection is ready.",
+      "notComplete": "Checklist is not complete yet."
+    },
+    "readonly": {
+      "archived": "Inspection is archived. Data is read-only.",
+      "ready": "Inspection is ready. Switch status back to Draft to edit checklists.",
+      "noPermission": "For the current role, this form is read-only."
+    },
+    "location": {
+      "title": "Location",
+      "name": "Name",
+      "address": "Address"
+    },
+    "comment": {
+      "title": "Comment",
+      "empty": "No comment."
+    },
+    "inspectionChecklist": {
+      "title": "Inspection checklist",
+      "description": "Form is built from config.inspectionForm and stored in inspection.attributes.",
+      "empty": "No inspection checklist configured for the active config."
+    },
+    "photoChecklist": {
+      "title": "Photo checklist",
+      "empty": "No photo checklist configured for the active config."
+    },
+    "checklist": {
+      "noRequiredFields": "No required fields",
+      "requiredProgress": "{{completed}}/{{total}} required"
+    },
+    "photoGallery": {
+      "title": "Photo gallery",
+      "description": "Import one or more photos from gallery and fill photo-level checklist fields.",
+      "photoType": "Photo type",
+      "defaultPhotoType": "Photo",
+      "imported": "Imported: {{date}}",
+      "noPhotoActions": "No photo actions for the current role.",
+      "emptyTitle": "No photos yet",
+      "emptyDescription": "Import photos from gallery to start field photo annotation."
+    },
+    "actions": {
+      "saveInspectionChecklist": "Save inspection checklist",
+      "savePhotoChecklist": "Save photo checklist",
+      "importPhotos": "Import photos",
+      "importing": "Importing...",
+      "annotate": "Annotate",
+      "viewAnnotations": "View markup",
+      "deletePhoto": "Delete photo"
+    },
+    "messages": {
+      "inspectionChecklistSaved": "Inspection checklist saved.",
+      "photoChecklistSaved": "Photo checklist saved: {{fileName}}",
+      "importedWithSkippedFiles": "Imported {{count}} photo(s). Skipped non-image file(s): {{files}}"
+    },
+    "errors": {
+      "noFilesSelected": "No files selected. On Android, make sure the photo is available on this device.",
+      "selectImage": "Select at least one image file.",
+      "androidCloudOnly": "On Android offline mode, cloud-only Google Photos items may not be available.",
+      "rejectedFiles": "Rejected files: {{files}}",
+      "importFailed": "Failed to import photos."
+    },
+    "confirm": {
+      "deletePhoto": "Delete this photo?"
+    }
   }
 }

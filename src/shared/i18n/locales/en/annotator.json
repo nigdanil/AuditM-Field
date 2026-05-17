@@ -24,5 +24,82 @@
       "photoCount": "{{count}} photos",
       "loadingPreview": "Loading preview..."
     }
+  },
+  "workspace": {
+    "title": "Photo annotator",
+    "photoId": "Photo ID",
+    "loadingPhoto": "Loading photo...",
+    "backToInspection": "Back to inspection",
+    "backToInspections": "Back to inspections",
+    "photoNotFound": {
+      "title": "Photo not found",
+      "description": "Import a photo inside an inspection and open it from the photo gallery."
+    },
+    "panel": {
+      "title": "Annotation panel",
+      "file": "File",
+      "photoType": "Photo type",
+      "size": "Size",
+      "newAnnotationType": "New annotation type"
+    },
+    "help": {
+      "editMode": "Draw a rectangle on the photo. Created annotations are saved locally in IndexedDB. After creating or selecting an annotation, fill the dynamic form below.",
+      "readOnlyMode": "Read-only mode: you can select an annotation and view its fields, but cannot change geometry, form values, AI review decisions, or delete supervisor markup."
+    },
+    "filters": {
+      "visibleTypes": "Visible types",
+      "sourceFilter": "Source filter"
+    },
+    "source": {
+      "all": "All",
+      "human": "Human",
+      "ai": "AI",
+      "imported": "Imported",
+      "pending_ai": "Pending AI"
+    },
+    "aiReview": {
+      "title": "AI review",
+      "pending": "{{count}} pending",
+      "description": "AI suggestions are pending human review. Accept changes source to human. Reject deletes the suggestion.",
+      "readOnlyDescription": "AI suggestions are read-only for the current role.",
+      "clearPending": "Clear pending AI suggestions",
+      "acceptedAi": "accepted AI",
+      "confidence": "confidence: {{value}}%",
+      "accept": "Accept",
+      "reject": "Reject",
+      "metadata": "AI metadata"
+    },
+    "annotations": {
+      "title": "Annotations",
+      "empty": "No annotations for the current filters.",
+      "selected": "selected",
+      "updated": "Updated: {{date}}",
+      "delete": "Delete annotation"
+    },
+    "form": {
+      "title": "Dynamic form",
+      "save": "Save annotation form",
+      "readOnlyMessage": "The current role can view values but cannot change them.",
+      "emptyEdit": "Select an annotation from the list or create a new one to fill the form.",
+      "emptyReadOnly": "Select an annotation from the list to view its fields.",
+      "notFilled": "Form is not filled yet."
+    },
+    "confirm": {
+      "deleteAnnotation": "Delete this annotation?",
+      "clearPendingAi": "Clear {{count}} pending AI suggestion(s) for this photo?",
+      "rejectAi": "Reject this AI suggestion? The annotation will be deleted."
+    },
+    "messages": {
+      "invalidGeometryCreate": "Annotation was not saved: invalid geometry. Try drawing it again.",
+      "annotationSaved": "Annotation saved as {{label}}. Fill the form below.",
+      "invalidGeometryUpdate": "Annotation geometry update was ignored: invalid geometry.",
+      "geometryNotSaved": "Annotation geometry update was not saved. Select the annotation and try again.",
+      "geometryUpdated": "Annotation geometry updated.",
+      "annotationDeleted": "Annotation deleted.",
+      "aiAccepted": "AI suggestion accepted. Source changed to human.",
+      "aiCleared": "Cleared {{count}} pending AI suggestion(s).",
+      "aiRejected": "AI suggestion rejected and deleted.",
+      "formSaved": "Annotation form saved."
+    }
   }
 }

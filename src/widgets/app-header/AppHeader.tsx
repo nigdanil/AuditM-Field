@@ -1,16 +1,21 @@
-import { NavLink } from 'react-router';
+import { NavLink, useNavigate } from 'react-router';
 import {
   ClipboardCheck,
   Database,
   FileArchive,
   Home,
   ImagePlus,
+  LogOut,
   Settings,
+  UserRound,
   type LucideIcon,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import type { Permission } from '../../entities/user/types';
 import { LanguageSwitcher } from '../../features/language-switcher/LanguageSwitcher';
+import { useAuthStore } from '../../features/auth/authStore';
+import { can } from '../../features/auth/permissions';
 
 type NavItem = {
   to: string;
@@ -22,6 +27,7 @@ type NavItem = {
     | 'nav.export'
     | 'nav.settings';
   icon: LucideIcon;
+  permission?: Permission;
 };
 
 const navItems: NavItem[] = [
@@ -34,31 +40,49 @@ const navItems: NavItem[] = [
     to: '/config-manager',
     labelKey: 'nav.configs',
     icon: Database,
+    permission: 'config:manage',
   },
   {
     to: '/inspections',
     labelKey: 'nav.inspections',
     icon: ClipboardCheck,
+    permission: 'inspection:view',
   },
   {
     to: '/annotator',
     labelKey: 'nav.annotator',
     icon: ImagePlus,
+    permission: 'annotation:view',
   },
   {
     to: '/export',
     labelKey: 'nav.export',
     icon: FileArchive,
+    permission: 'export:create',
   },
   {
     to: '/settings',
     labelKey: 'nav.settings',
     icon: Settings,
+    permission: 'settings:manage',
   },
 ];
 
 export function AppHeader() {
   const { t } = useTranslation('common');
+  const navigate = useNavigate();
+
+  const currentUser = useAuthStore((state) => state.currentUser);
+  const logout = useAuthStore((state) => state.logout);
+
+  const visibleNavItems = navItems.filter(
+    (item) => !item.permission || can(currentUser, item.permission),
+  );
+
+  function handleLogout() {
+    logout();
+    navigate('/login', { replace: true });
+  }
 
   return (
     <header className="border-b border-slate-800 bg-slate-950/90 backdrop-blur">
@@ -70,7 +94,7 @@ export function AppHeader() {
 
         <div className="flex flex-wrap items-center gap-2">
           <nav className="flex flex-wrap gap-2">
-            {navItems.map((item) => {
+            {visibleNavItems.map((item) => {
               const Icon = item.icon;
 
               return (
@@ -93,7 +117,26 @@ export function AppHeader() {
             })}
           </nav>
 
+          {currentUser ? (
+            <div className="inline-flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 text-sm text-slate-300">
+              <UserRound size={16} />
+              <span>{currentUser.name}</span>
+              <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-400">
+                {t(`roles.${currentUser.role}`)}
+              </span>
+            </div>
+          ) : null}
+
           <LanguageSwitcher />
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-800 hover:text-white"
+          >
+            <LogOut size={16} />
+            {t('actions.logout')}
+          </button>
         </div>
       </div>
     </header>

@@ -27,5 +27,70 @@
       "title": "Export",
       "description": "Export ZIP packages with photos, annotations, config, and manifest."
     }
+  },
+  "workflows": {
+    "currentRole": "Current role: {{role}}",
+    "user": "User",
+    "step": "Step {{number}}",
+    "merchandiser": {
+      "title": "Merchandiser workspace",
+      "description": "Create inspections, upload photos, submit them for review, view supervisor markup without editing it, and upload photos after corrections.",
+      "steps": {
+        "createInspection": "Create inspection",
+        "uploadBefore": "Upload before-correction photo",
+        "submitToSupervisor": "Submit to supervisor",
+        "viewSupervisorMarkup": "View supervisor markup and comments",
+        "uploadAfterFix": "Upload after-correction photo"
+      }
+    },
+    "supervisor": {
+      "title": "Supervisor workspace",
+      "description": "Review submitted visits, add markup, capture violations, request corrections, and approve the result.",
+      "steps": {
+        "openInspections": "Open inspections",
+        "reviewPhotos": "Review photos",
+        "addViolationMarks": "Add violation marks",
+        "requestCorrection": "Request correction",
+        "acceptCorrection": "Accept correction"
+      }
+    },
+    "admin": {
+      "title": "Admin workspace",
+      "description": "Manage configs, test role scenarios, and prepare demo audit workflows.",
+      "steps": {
+        "manageConfigs": "Manage configs",
+        "checkMerchScenario": "Check merchandiser scenario",
+        "checkSupervisorScenario": "Check supervisor scenario",
+        "exportPackages": "Export packages",
+        "prepareDemo": "Prepare demo"
+      }
+    },
+    "viewer": {
+      "title": "Viewer mode",
+      "description": "View available inspections and evidence packages without changing decisions.",
+      "steps": {
+        "viewInspections": "View inspections",
+        "viewMarkup": "View markup",
+        "exportAvailableData": "Export available data"
+      }
+    }
+  },
+  "quickActions": {
+    "inspections": {
+      "title": "Open inspections",
+      "description": "View local inspections and details."
+    },
+    "annotator": {
+      "title": "Open annotator",
+      "description": "View or review photo markup depending on role."
+    },
+    "configs": {
+      "title": "Manage configs",
+      "description": "Load and manage audit JSON configs."
+    },
+    "export": {
+      "title": "Export packages",
+      "description": "Create ZIP evidence packages."
+    }
   }
 }

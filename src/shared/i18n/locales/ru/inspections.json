@@ -47,5 +47,85 @@
     "SYNC_PENDING": "Ожидает синхронизации",
     "SYNCED": "Синхронизировано",
     "SYNC_FAILED": "Ошибка синхронизации"
+  },
+  "detail": {
+    "loadingInspection": "Загрузка проверки...",
+    "loadingPreview": "Загрузка превью...",
+    "backToInspections": "Назад к проверкам",
+    "notFound": "Проверка не найдена.",
+    "notSpecified": "Не указано",
+    "fields": {
+      "id": "ID",
+      "status": "Статус",
+      "config": "Конфиг",
+      "created": "Создано",
+      "updated": "Обновлено"
+    },
+    "statusMessage": {
+      "archived": "Проверка в архиве.",
+      "ready": "Чек-лист заполнен. Проверка готова.",
+      "notComplete": "Чек-лист ещё не заполнен."
+    },
+    "readonly": {
+      "archived": "Проверка в архиве. Данные доступны только для просмотра.",
+      "ready": "Проверка готова. Верни статус в Черновик, чтобы редактировать чек-листы.",
+      "noPermission": "Для текущей роли форма доступна только для просмотра."
+    },
+    "location": {
+      "title": "Локация",
+      "name": "Название",
+      "address": "Адрес"
+    },
+    "comment": {
+      "title": "Комментарий",
+      "empty": "Комментария нет."
+    },
+    "inspectionChecklist": {
+      "title": "Чек-лист проверки",
+      "description": "Форма строится из config.inspectionForm и хранится в inspection.attributes.",
+      "empty": "Для активного конфига чек-лист проверки не настроен."
+    },
+    "photoChecklist": {
+      "title": "Чек-лист фото",
+      "empty": "Для активного конфига чек-лист фото не настроен."
+    },
+    "checklist": {
+      "noRequiredFields": "Нет обязательных полей",
+      "requiredProgress": "{{completed}}/{{total}} обязательно"
+    },
+    "photoGallery": {
+      "title": "Галерея фото",
+      "description": "Импортируй одно или несколько фото из галереи и заполни поля чек-листа уровня фото.",
+      "photoType": "Тип фото",
+      "defaultPhotoType": "Фото",
+      "imported": "Импортировано: {{date}}",
+      "noPhotoActions": "Для текущей роли нет действий с фото.",
+      "emptyTitle": "Фотографий пока нет",
+      "emptyDescription": "Импортируй фото из галереи, чтобы начать полевую разметку."
+    },
+    "actions": {
+      "saveInspectionChecklist": "Сохранить чек-лист проверки",
+      "savePhotoChecklist": "Сохранить чек-лист фото",
+      "importPhotos": "Импорт фото",
+      "importing": "Импорт...",
+      "annotate": "Разметить",
+      "viewAnnotations": "Смотреть разметку",
+      "deletePhoto": "Удалить фото"
+    },
+    "messages": {
+      "inspectionChecklistSaved": "Чек-лист проверки сохранён.",
+      "photoChecklistSaved": "Чек-лист фото сохранён: {{fileName}}",
+      "importedWithSkippedFiles": "Импортировано фото: {{count}}. Пропущены не-изображения: {{files}}"
+    },
+    "errors": {
+      "noFilesSelected": "Файлы не выбраны. На Android убедись, что фото доступно на устройстве.",
+      "selectImage": "Выбери хотя бы один файл изображения.",
+      "androidCloudOnly": "В offline-режиме Android cloud-only элементы Google Photos могут быть недоступны.",
+      "rejectedFiles": "Отклонённые файлы: {{files}}",
+      "importFailed": "Не удалось импортировать фото."
+    },
+    "confirm": {
+      "deletePhoto": "Удалить это фото?"
+    }
   }
 }

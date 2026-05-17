@@ -9,10 +9,13 @@ This document describes a recommended demo scenario for presenting AuditM-Field.
 Show the full local-first workflow:
 
 ```text
-Config
+Role login
+  -> Config
   -> Inspection
   -> Photo
   -> Annotation
+  -> Supervisor review
+  -> Merchandiser read-only markup view
   -> Dynamic forms
   -> ZIP export/import
   -> Transport
@@ -32,12 +35,31 @@ Open the local Vite URL in a browser.
 
 ---
 
-## 2. Load demo config
+## 2. Sign in
+
+Open the app and sign in with one of the local mock users.
+
+Recommended demo order:
+
+```text
+1. Admin or supervisor: prepare/review data.
+2. Merchandiser: show read-only supervisor markup.
+```
+
+Mock users are defined in:
+
+```text
+src/features/auth/mockUsers.ts
+```
+
+---
+
+## 3. Load demo config
 
 Open:
 
 ```text
-Configs
+Config Manager
 ```
 
 Load or select:
@@ -54,7 +76,7 @@ Active config: Retail Shelf Audit
 
 ---
 
-## 3. Create inspection
+## 4. Create inspection
 
 Open:
 
@@ -75,7 +97,7 @@ Open the created inspection.
 
 ---
 
-## 4. Fill inspection checklist
+## 5. Fill inspection checklist
 
 In the inspection detail page, fill the inspection-level checklist.
 
@@ -91,7 +113,7 @@ Save the inspection checklist.
 
 ---
 
-## 5. Import photo
+## 6. Import photo
 
 In the photo gallery:
 
@@ -110,7 +132,7 @@ Photo card appears in the gallery.
 
 ---
 
-## 6. Fill photo checklist
+## 7. Fill photo checklist
 
 Fill the photo-level checklist if configured.
 
@@ -124,7 +146,7 @@ Save the photo checklist.
 
 ---
 
-## 7. Open Annotator
+## 8. Open Annotator as supervisor
 
 Click:
 
@@ -140,40 +162,79 @@ Photo Annotator opens with the selected photo.
 
 ---
 
-## 8. Create annotation
+## 9. Create supervisor annotations
 
 Select annotation type:
 
 ```text
 Product area
+Price tag
+Violation
+Competitor zone
 ```
 
-Draw a rectangle on the image.
+Draw rectangles on the image.
 
 Expected result:
 
 ```text
-Annotation appears in the list.
+Annotations appear in the list.
 Dynamic form becomes available.
 ```
 
 ---
 
-## 9. Fill annotation form
+## 10. Fill annotation form
 
 Example:
 
 ```text
 Brand: Our brand
 Condition: OK
-Comment: Demo product area
+Violation type: Wrong placement
+Comment: Demo supervisor markup
 ```
 
 Save the form.
 
 ---
 
-## 10. Export ZIP
+## 11. Check navigation stability
+
+With an annotation selected, click:
+
+```text
+Back to inspection
+```
+
+Expected result:
+
+```text
+The app navigates back without console errors.
+The annotation remains saved.
+```
+
+This demonstrates the Annotorious selection cleanup before navigation.
+
+---
+
+## 12. Re-login as merchandiser
+
+Log out and sign in as merchandiser.
+
+Open the same inspection and photo.
+
+Expected result:
+
+```text
+Merchandiser can see supervisor markup.
+Merchandiser can select annotations and inspect values.
+Merchandiser cannot edit geometry, form values, delete annotations or review AI suggestions.
+```
+
+---
+
+## 13. Export ZIP
 
 Open:
 
@@ -196,7 +257,7 @@ Export job is created.
 
 ---
 
-## 11. Import ZIP back
+## 14. Import ZIP back
 
 Open:
 
@@ -215,7 +276,7 @@ Existing records are updated by id.
 
 ---
 
-## 12. Test mock HTTP upload
+## 15. Test mock HTTP upload
 
 Start mock server:
 
@@ -243,7 +304,7 @@ transport: PROCESSING
 
 ---
 
-## 13. Generate and review AI suggestions
+## 16. Generate and review AI suggestions
 
 Open:
 
@@ -275,7 +336,7 @@ Expected result:
 AI suggestion appears with confidence and review status.
 ```
 
-Actions:
+Actions for supervisor/admin:
 
 ```text
 Accept -> source becomes human
@@ -283,9 +344,11 @@ Reject -> suggestion is deleted
 Clear pending AI suggestions -> pending suggestions are removed
 ```
 
+Read-only roles can inspect AI metadata but cannot approve/reject suggestions.
+
 ---
 
-## 14. Demo talking points
+## 17. Demo talking points
 
 Use these points when presenting:
 
@@ -293,8 +356,11 @@ Use these points when presenting:
 - Business logic is config-driven.
 - The app works without backend.
 - Data is stored locally.
+- Roles demonstrate field capture and supervisor review.
+- Merchandiser can view supervisor markup without editing it.
 - Export ZIP makes data portable.
 - Upload adapters connect to backend/n8n.
 - AI is optional and reviewed by humans.
 - The PWA does not store AI provider secrets.
+- RU/EN localization is bundled and works offline.
 ```

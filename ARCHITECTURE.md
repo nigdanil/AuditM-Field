@@ -1,6 +1,6 @@
 # AuditM-Field Architecture
 
-AuditM-Field is a frontend-first, offline-first, config-driven PWA for field photo audits and image annotation.
+AuditM-Field is a frontend-first, offline-first, config-driven PWA for field photo audits, image annotation, role-based review, localization and structured evidence export.
 
 ---
 
@@ -9,6 +9,7 @@ AuditM-Field is a frontend-first, offline-first, config-driven PWA for field pho
 ```text
 Audit config
   -> Dynamic UI
+  -> Local role-aware workflow
   -> Local inspection data
   -> ZIP export/import
   -> External transport
@@ -22,6 +23,8 @@ The application separates:
 Configuration data
 from
 Working audit data
+from
+Current user/session permissions
 ```
 
 ---
@@ -30,18 +33,20 @@ Working audit data
 
 ```text
 AuditM-Field PWA
-  |
-  |-- App shell
-  |-- Config loader
-  |-- Dynamic UI builder
-  |-- Inspection module
-  |-- Photo import module
-  |-- Annotation module
-  |-- Checklist module
-  |-- Local IndexedDB storage
-  |-- ZIP export/import
-  |-- Storage adapters
-  |-- AI suggestions import/review
+|
+|-- App shell
+|-- Mock auth / permission layer
+|-- Config loader
+|-- i18n layer
+|-- Dynamic UI builder
+|-- Inspection module
+|-- Photo import module
+|-- Annotation module
+|-- Checklist module
+|-- Local IndexedDB storage
+|-- ZIP export/import
+|-- Storage adapters
+|-- AI suggestions import/review
 ```
 
 ---
@@ -64,18 +69,92 @@ Supported config sources:
 - bundled demo config
 - local JSON file
 - direct URL
-- future GitHub registry / backend provider
+- GitHub registry
+- future backend provider
 ```
+
+---
+
+## Auth and permission flow
+
+Current MVP uses local mock authorization.
+
+```text
+Login page
+  -> authStore
+  -> currentUser
+  -> role
+  -> permissions
+  -> route guards
+  -> role-aware UI
+```
+
+Main files:
+
+```text
+src/pages/login/LoginPage.tsx
+src/features/auth/authStore.ts
+src/features/auth/mockUsers.ts
+src/features/auth/permissions.ts
+src/features/auth/RequireAuth.tsx
+src/features/auth/RequirePermission.tsx
+src/features/auth/RoleGate.tsx
+```
+
+Current roles:
+
+```text
+merchandiser
+supervisor
+admin
+viewer
+```
+
+The permission layer controls:
+
+* route visibility;
+* navigation visibility;
+* checklist write access;
+* annotation edit access;
+* AI review actions;
+* export/config/settings access.
+
+This is intentionally frontend-only for MVP and demo usage. A production backend must validate permissions server-side.
+
+---
+
+## Localization flow
+
+```text
+i18next initialization
+  -> bundled translation resources
+  -> LanguageSwitcher
+  -> useTranslation(namespace)
+  -> localized UI
+```
+
+Main files:
+
+```text
+src/shared/i18n/index.ts
+src/shared/i18n/i18next.d.ts
+src/shared/i18n/locales/en/*.json
+src/shared/i18n/locales/ru/*.json
+src/features/language-switcher/LanguageSwitcher.tsx
+```
+
+Localization is offline-friendly because translations are bundled with the PWA.
 
 ---
 
 ## Data flow
 
 ```text
-User creates inspection
+User signs in locally
+  -> creates inspection
   -> imports photo
-  -> creates annotations
-  -> fills forms
+  -> creates or views annotations according to permission
+  -> fills forms according to permission
   -> IndexedDB stores records
   -> export builds ZIP
   -> local download or upload adapter
@@ -84,6 +163,20 @@ User creates inspection
 ---
 
 ## Main entities
+
+### User
+
+Represents the current mock user and role.
+
+Fields include:
+
+```text
+id
+name
+login
+password
+role
+```
 
 ### Inspection
 
@@ -194,6 +287,55 @@ The browser is the main working storage for MVP.
 
 ---
 
+## Annotation architecture
+
+The Photo Annotator is built around Annotorious and React state.
+
+Core responsibilities:
+
+```text
+photo blob -> objectUrl
+annotations from IndexedDB
+  -> normalize rawAnnotation target.source to current objectUrl
+  -> render through Annotorious setAnnotations(...)
+  -> sync selected annotation with React state
+  -> edit geometry only when role allows it
+  -> save dynamic form values
+```
+
+Important stability rules:
+
+* Do not rely on unsupported `filter={...}` behavior in Annotorious.
+* Keep filtering in React state.
+* Render only the annotations that should be visible.
+* Normalize annotation source to the current image `blob:` URL before rendering.
+* Avoid re-saving geometry when only the temporary image source changed.
+* Clear active Annotorious selection before navigation to avoid SVG overlay errors during unmount.
+* Use read-only mode for users without annotation edit permission.
+
+---
+
+## Role-based annotation behavior
+
+```text
+supervisor/admin
+  -> can create/edit/delete annotations
+  -> can fill annotation form
+  -> can accept/reject AI suggestions
+
+merchandiser/viewer
+  -> can view annotations
+  -> can select annotation from list
+  -> can inspect values
+  -> cannot edit supervisor geometry
+  -> cannot delete supervisor annotations
+  -> cannot accept/reject AI suggestions
+```
+
+This supports the MVP scenario where the merchandiser sees supervisor markup but does not change it.
+
+---
+
 ## ZIP export architecture
 
 ```text
@@ -213,13 +355,13 @@ Package structure:
 manifest.json
 config.json
 inspections/
-  inspection_<id>.json
 photos/
-  photos.metadata.json
-  <photoId>_<fileName>
 annotations/
-  annotations.json
+rendered/
+crops/
 ```
+
+Original photos are exported without permanent drawn boxes. Rendered overlays and crops are generated as visual evidence.
 
 ---
 
@@ -264,13 +406,13 @@ Transport request:
 
 ```text
 multipart/form-data
-  file
-  metadata
-  manifest
-  contractVersion
-  packageFormatVersion
-  inspectionId
-  configId
+file
+metadata
+manifest
+contractVersion
+packageFormatVersion
+inspectionId
+configId
 ```
 
 ---
@@ -322,32 +464,22 @@ Clear pending
   -> delete pending source: ai suggestions for current photo
 ```
 
+Role restrictions apply: read-only roles can view AI metadata but cannot approve or reject AI suggestions.
+
 ---
 
 ## Module structure
 
 ```text
 src/
-  app/
-    routes and application providers
-
-  core/
-    config schema, config storage, config loading
-
-  entities/
-    domain models and schemas
-
-  features/
-    isolated user-facing feature blocks
-
-  pages/
-    route-level pages
-
-  services/
-    database, export, import, storage adapters
-
-  widgets/
-    layout and reusable UI sections
+  app/                 routes and application providers
+  core/                config schema, config storage, config loading
+  entities/            domain models and schemas
+  features/            isolated user-facing feature blocks
+  pages/               route-level pages
+  services/            database, export, import, storage adapters
+  shared/              i18n and common utilities
+  widgets/             layout and reusable UI sections
 ```
 
 ---
@@ -365,6 +497,10 @@ The app should remain useful without a backend.
 ### Offline-first
 
 Local work should continue without network access.
+
+### Role-aware, not backend-auth-first
+
+The MVP includes a frontend role model for demos. Production authorization must still be enforced by a backend.
 
 ### Adapter-based
 
@@ -391,6 +527,7 @@ AuditM-Field is not:
 - Label Studio replacement
 - backend platform
 - AI provider
+- production identity provider
 ```
 
 AuditM-Field is:
@@ -400,6 +537,7 @@ AuditM-Field is:
 - photo evidence collector
 - image annotation frontend
 - dynamic checklist engine
+- role-aware review UI
 - structured export/import tool
 - AI suggestion review UI
 ```
